@@ -5,3 +5,8 @@ dist
 .env
 .env.local
 .lyy/
+
+# K8s Secret YAML — secrets must be created via `kubectl create secret`,
+# never checked in (even encrypted)
+deploy/**/secret*.yaml
+deploy/**/secrets/
