@@ -2,11 +2,12 @@ import {
   installLaunchAgent,
   type Identity,
 } from "@lyy/daemon";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { fileURLToPath } from "node:url";
 import { which } from "../util/which.js";
 
 export interface InitOptions {
@@ -52,7 +53,10 @@ export async function runInit(opts: InitOptions): Promise<void> {
     console.log(`[init] wrote ${IDENTITY_PATH} (mode 0600)`);
 
     mergeClaudeSettings(CLAUDE_SETTINGS_PATH);
-    console.log(`[init] merged lyy-mcp registration into ${CLAUDE_SETTINGS_PATH}`);
+    console.log(`[init] merged lyy MCP + statusLine + hooks into ${CLAUDE_SETTINGS_PATH}`);
+
+    const installed = installSlashCommands();
+    console.log(`[init] installed ${installed} slash command(s) into ~/.claude/commands/`);
 
     if (opts.launchAgent !== false) {
       const daemonPath = which("lyy-daemon");
@@ -78,12 +82,23 @@ export function writeIdentity(path: string, identity: Identity): void {
   writeFileSync(path, JSON.stringify(identity, null, 2), { mode: 0o600 });
 }
 
+interface HookSpec {
+  hooks: { type: string; command: string }[];
+}
 interface ClaudeSettings {
   mcpServers?: Record<string, { command: string; args?: string[] }>;
+  statusLine?: { type: string; command: string; refreshInterval?: number };
+  hooks?: Record<string, HookSpec[]>;
   [k: string]: unknown;
 }
 
 const LYY_MCP_BIN = "lyy-mcp";
+const LYY_STATUSLINE_CMD = "lyy statusline";
+const LYY_HOOK_COMMANDS: Record<string, string> = {
+  SessionStart: "lyy hook session-start",
+  UserPromptSubmit: "lyy hook prompt-submit",
+  Stop: "lyy hook stop",
+};
 
 export function mergeClaudeSettings(path: string): void {
   const dir = dirname(path);
@@ -101,6 +116,56 @@ export function mergeClaudeSettings(path: string): void {
   const mcpServers = { ...(current.mcpServers ?? {}) };
   mcpServers.lyy = { command: LYY_MCP_BIN, args: [] };
 
-  const next: ClaudeSettings = { ...current, mcpServers };
+  const statusLine = current.statusLine ?? {
+    type: "command",
+    command: LYY_STATUSLINE_CMD,
+    refreshInterval: 5000,
+  };
+  // Force statusLine to lyy if user hasn't customized away from a default-ish command
+  if (!current.statusLine) statusLine.command = LYY_STATUSLINE_CMD;
+
+  const hooks = mergeHooks(current.hooks ?? {});
+
+  const next: ClaudeSettings = { ...current, mcpServers, statusLine, hooks };
   writeFileSync(path, JSON.stringify(next, null, 2), "utf8");
+}
+
+/**
+ * Add the lyy hook entry under each event without disturbing existing hooks.
+ * Idempotent — re-running init won't add duplicates.
+ */
+function mergeHooks(existing: Record<string, HookSpec[]>): Record<string, HookSpec[]> {
+  const next = { ...existing };
+  for (const [event, command] of Object.entries(LYY_HOOK_COMMANDS)) {
+    const groups = [...(next[event] ?? [])];
+    const lyyHook = { type: "command", command };
+    const alreadyHasLyy = groups.some((g) =>
+      g.hooks.some((h) => h.command === command),
+    );
+    if (!alreadyHasLyy) groups.push({ hooks: [lyyHook] });
+    next[event] = groups;
+  }
+  return next;
+}
+
+/** Copy claude-assets/commands/*.md into ~/.claude/commands/. Returns count. */
+export function installSlashCommands(targetDir?: string, sourceDir?: string): number {
+  const target = targetDir ?? resolve(homedir(), ".claude", "commands");
+  if (!existsSync(target)) mkdirSync(target, { recursive: true });
+
+  const source = sourceDir ?? defaultSlashCommandsDir();
+  if (!existsSync(source)) return 0;
+
+  const files = readdirSync(source).filter((f) => f.endsWith(".md"));
+  for (const file of files) {
+    copyFileSync(resolve(source, file), resolve(target, file));
+  }
+  return files.length;
+}
+
+function defaultSlashCommandsDir(): string {
+  // Resolves relative to the built output location.
+  // packages/cli/dist/commands/init.js → ../../../../claude-assets/commands
+  const here = fileURLToPath(import.meta.url);
+  return resolve(dirname(here), "..", "..", "..", "..", "claude-assets", "commands");
 }

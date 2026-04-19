@@ -1,0 +1,37 @@
+{
+  "_comment": "Reference snippet for what `lyy init` merges into ~/.claude/settings.json. Do NOT load this file directly — let `lyy init` handle the merge so existing settings are preserved.",
+  "mcpServers": {
+    "lyy": {
+      "command": "lyy-mcp",
+      "args": []
+    }
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "lyy statusline",
+    "refreshInterval": 5000
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "lyy hook session-start" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "lyy hook prompt-submit" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "lyy hook stop" }
+        ]
+      }
+    ]
+  }
+}

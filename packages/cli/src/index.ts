@@ -1,7 +1,9 @@
 import { Command } from "commander";
 import { runDefault } from "./commands/default.js";
 import { runDoctor } from "./commands/doctor.js";
+import { type HookEvent, runHook } from "./commands/hook.js";
 import { runInit, type InitOptions } from "./commands/init.js";
+import { runStatusline } from "./commands/statusline.js";
 import { runThread } from "./commands/thread.js";
 
 export function buildCli(): Command {
@@ -32,6 +34,16 @@ export function buildCli(): Command {
     .command("doctor")
     .description("Health check: identity, daemon, relay, zellij, claude, settings.json")
     .action(async () => runDoctor());
+
+  program
+    .command("statusline")
+    .description("Print LYY statusLine (called by Claude Code statusLine config)")
+    .action(async () => runStatusline());
+
+  program
+    .command("hook <event>")
+    .description("Internal hook dispatcher (session-start | prompt-submit | stop)")
+    .action(async (event: string) => runHook(event as HookEvent));
 
   program.action(async () => runDefault());
 
