@@ -2,7 +2,8 @@ import { McpIpcClient } from "@lyy/daemon";
 import { detectMode } from "./mode.js";
 import { startStdio } from "./server.js";
 
-async function main(): Promise<void> {
+/** Called by bin/lyy-mcp — registers pane if in thread mode, then stdio loop. */
+export async function run(): Promise<void> {
   const ipc = new McpIpcClient();
   const mode = detectMode();
 
@@ -34,12 +35,4 @@ async function main(): Promise<void> {
   }
 
   await startStdio({ ipcClient: ipc, mode });
-}
-
-const isDirectInvocation = import.meta.url === `file://${process.argv[1]}`;
-if (isDirectInvocation) {
-  main().catch((err) => {
-    console.error("[lyy-mcp] fatal:", err);
-    process.exit(1);
-  });
 }

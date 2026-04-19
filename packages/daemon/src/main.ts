@@ -61,20 +61,13 @@ export async function startDaemon(): Promise<DaemonHandles> {
   };
 }
 
-// Bin entry: when invoked directly (not imported), boot + install signal handlers
-const isDirectInvocation = import.meta.url === `file://${process.argv[1]}`;
-if (isDirectInvocation) {
-  startDaemon()
-    .then((handles) => {
-      const onSignal = (sig: NodeJS.Signals) => {
-        console.log(`[lyy-daemon] received ${sig}`);
-        handles.shutdown().finally(() => process.exit(0));
-      };
-      process.on("SIGINT", onSignal);
-      process.on("SIGTERM", onSignal);
-    })
-    .catch((err) => {
-      console.error("[lyy-daemon] boot failed:", err);
-      process.exit(1);
-    });
+/** Called by bin/lyy-daemon — boots + installs signal handlers. */
+export async function run(): Promise<void> {
+  const handles = await startDaemon();
+  const onSignal = (sig: NodeJS.Signals) => {
+    console.log(`[lyy-daemon] received ${sig}`);
+    handles.shutdown().finally(() => process.exit(0));
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
 }

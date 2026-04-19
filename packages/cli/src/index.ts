@@ -88,11 +88,3 @@ export function buildCli(): Command {
 export async function main(argv: string[] = process.argv): Promise<void> {
   await buildCli().parseAsync(argv);
 }
-
-const isDirectInvocation = import.meta.url === `file://${process.argv[1]}`;
-if (isDirectInvocation) {
-  main().catch((err) => {
-    console.error(err instanceof Error ? err.message : err);
-    process.exit(1);
-  });
-}
