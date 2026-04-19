@@ -14,9 +14,12 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@lyy/shared": "workspace:*"
+    "@lyy/daemon": "workspace:^",
+    "@lyy/shared": "workspace:*",
+    "commander": "^14.0.3"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
