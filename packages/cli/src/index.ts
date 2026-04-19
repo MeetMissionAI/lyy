@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { runAdminInvite } from "./commands/admin.js";
 import { runDefault } from "./commands/default.js";
 import { runDoctor } from "./commands/doctor.js";
 import { type HookEvent, runHook } from "./commands/hook.js";
@@ -54,6 +55,30 @@ export function buildCli(): Command {
       "Internal hook dispatcher (session-start | prompt-submit | stop)",
     )
     .action(async (event: string) => runHook(event as HookEvent));
+
+  const admin = program
+    .command("admin")
+    .description("Admin operations (invites, peer management, ...)");
+  admin
+    .command("invite <email>")
+    .description("Issue a one-time pairing code (writes to invites table)")
+    .option("--days <n>", "Expiry window in days (default: 7)", (v) =>
+      Number.parseInt(v, 10),
+    )
+    .option("--code <code>", "Override the generated code")
+    .option("--db-url <url>", "DB URL (default: env DATABASE_URL)")
+    .option("--relay-url <url>", "Relay URL printed in the join command")
+    .action(
+      async (
+        email: string,
+        opts: {
+          days?: number;
+          code?: string;
+          dbUrl?: string;
+          relayUrl?: string;
+        },
+      ) => runAdminInvite({ email, ...opts }),
+    );
 
   program.action(async () => runDefault());
 
