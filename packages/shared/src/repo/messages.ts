@@ -28,14 +28,18 @@ export interface InsertMessageInput {
 }
 
 export async function insertMessage(db: Queryable, input: InsertMessageInput): Promise<Message> {
-  // Not atomic on its own; caller wraps in db.begin() for strict
-  // last_message_at consistency. The UPDATE is idempotent on retry.
+  // Two statements; caller wraps in db.begin() if it needs the pair atomic.
+  // Standalone callers are protected against last-message-wins races by
+  // GREATEST() — concurrent inserts never make last_message_at go backwards.
   const [row] = await db<MessageRow[]>`
     INSERT INTO messages (thread_id, from_peer, body)
     VALUES (${input.threadId}, ${input.fromPeer}, ${input.body})
     RETURNING id, thread_id, from_peer, body, sent_at, seq
   `;
-  await db`UPDATE threads SET last_message_at = ${row.sent_at} WHERE id = ${input.threadId}`;
+  await db`
+    UPDATE threads SET last_message_at = GREATEST(last_message_at, ${row.sent_at})
+    WHERE id = ${input.threadId}
+  `;
   return mapRow(row);
 }
 

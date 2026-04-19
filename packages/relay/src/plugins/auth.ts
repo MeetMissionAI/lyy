@@ -3,7 +3,12 @@ import jwt from "jsonwebtoken";
 
 declare module "fastify" {
   interface FastifyRequest {
-    peerId?: string;
+    /**
+     * Guaranteed non-empty inside protected route handlers — the auth
+     * plugin's onRequest hook rejects requests without a valid token
+     * before they reach a handler. Empty string outside protected scope.
+     */
+    peerId: string;
   }
 }
 
@@ -19,7 +24,7 @@ export const authPlugin = fp<AuthOptions>(
   async (app, opts) => {
     const publicPaths = opts.publicPaths ?? DEFAULT_PUBLIC;
 
-    app.decorateRequest("peerId");
+    app.decorateRequest("peerId", "");
 
     app.addHook("onRequest", async (req, reply) => {
       if (publicPaths.some((p) => req.url === p || req.url.startsWith(`${p}?`))) {

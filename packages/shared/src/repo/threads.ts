@@ -95,11 +95,18 @@ export async function findActiveThread(
 
 export interface ThreadListItem extends Thread {
   archived: boolean;
+  unread: number;
+}
+
+interface ThreadListRow extends ThreadRow {
+  archived: boolean;
+  participants: string[];
+  unread: string | number;
 }
 
 /**
- * List all threads where peerId is a participant. archived flag is
- * computed per-peer (against thread_archives).
+ * List all threads where peerId is a participant. Includes archived flag
+ * and per-thread unread count for that peer in a single query (no N+1).
  */
 export async function listThreadsForPeer(
   db: Queryable,
@@ -108,27 +115,40 @@ export async function listThreadsForPeer(
 ): Promise<ThreadListItem[]> {
   const includeArchived = opts.includeArchived ?? false;
   const rows = includeArchived
-    ? await db<(ThreadRow & { archived: boolean })[]>`
-        SELECT t.id, t.short_id, t.title, t.created_at, t.last_message_at,
-               EXISTS (SELECT 1 FROM thread_archives WHERE thread_id = t.id AND peer_id = ${peerId}) AS archived
+    ? await db<ThreadListRow[]>`
+        SELECT
+          t.id, t.short_id, t.title, t.created_at, t.last_message_at,
+          ARRAY(SELECT peer_id FROM thread_participants WHERE thread_id = t.id) AS participants,
+          EXISTS (SELECT 1 FROM thread_archives WHERE thread_id = t.id AND peer_id = ${peerId}) AS archived,
+          (SELECT count(*)::int FROM messages m
+             WHERE m.thread_id = t.id
+               AND m.from_peer != ${peerId}
+               AND NOT EXISTS (SELECT 1 FROM message_reads mr
+                                 WHERE mr.message_id = m.id AND mr.peer_id = ${peerId})
+          ) AS unread
         FROM threads t
-        JOIN thread_participants tp ON tp.thread_id = t.id
-        WHERE tp.peer_id = ${peerId}
+        JOIN thread_participants tp ON tp.thread_id = t.id AND tp.peer_id = ${peerId}
         ORDER BY t.last_message_at DESC
       `
-    : await db<(ThreadRow & { archived: boolean })[]>`
-        SELECT t.id, t.short_id, t.title, t.created_at, t.last_message_at,
-               false AS archived
+    : await db<ThreadListRow[]>`
+        SELECT
+          t.id, t.short_id, t.title, t.created_at, t.last_message_at,
+          ARRAY(SELECT peer_id FROM thread_participants WHERE thread_id = t.id) AS participants,
+          false AS archived,
+          (SELECT count(*)::int FROM messages m
+             WHERE m.thread_id = t.id
+               AND m.from_peer != ${peerId}
+               AND NOT EXISTS (SELECT 1 FROM message_reads mr
+                                 WHERE mr.message_id = m.id AND mr.peer_id = ${peerId})
+          ) AS unread
         FROM threads t
-        JOIN thread_participants tp ON tp.thread_id = t.id
-        WHERE tp.peer_id = ${peerId}
-          AND NOT EXISTS (SELECT 1 FROM thread_archives WHERE thread_id = t.id AND peer_id = ${peerId})
+        JOIN thread_participants tp ON tp.thread_id = t.id AND tp.peer_id = ${peerId}
+        WHERE NOT EXISTS (SELECT 1 FROM thread_archives WHERE thread_id = t.id AND peer_id = ${peerId})
         ORDER BY t.last_message_at DESC
       `;
-  const out: ThreadListItem[] = [];
-  for (const r of rows) {
-    const participants = await loadParticipants(db, r.id);
-    out.push({ ...mapRow(r, participants), archived: r.archived });
-  }
-  return out;
+  return rows.map((r) => ({
+    ...mapRow(r, r.participants),
+    archived: r.archived,
+    unread: typeof r.unread === "string" ? Number(r.unread) : r.unread,
+  }));
 }
