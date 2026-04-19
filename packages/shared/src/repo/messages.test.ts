@@ -1,8 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db.js";
-import { createPeer } from "./peers.js";
 import { TEST_PREFIX, cleanupTestData } from "./_test-utils.ts";
 import { insertMessage, listMessages, searchMessages } from "./messages.js";
+import { createPeer } from "./peers.js";
 import { createThread, getThreadById } from "./threads.js";
 
 const url = process.env.DATABASE_URL;
@@ -33,8 +33,16 @@ async function seed() {
 describe.skipIf(skip)("messages repo", () => {
   it("insertMessage assigns monotonic seq within thread", async () => {
     const { a, t } = await seed();
-    const m1 = await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "first" });
-    const m2 = await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "second" });
+    const m1 = await insertMessage(db, {
+      threadId: t.id,
+      fromPeer: a.id,
+      body: "first",
+    });
+    const m2 = await insertMessage(db, {
+      threadId: t.id,
+      fromPeer: a.id,
+      body: "second",
+    });
     expect(m2.seq).toBeGreaterThan(m1.seq);
   });
 
@@ -44,8 +52,8 @@ describe.skipIf(skip)("messages repo", () => {
     await new Promise((r) => setTimeout(r, 50));
     await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "tick" });
     const after = await getThreadById(db, t.id);
-    expect(new Date(after!.lastMessageAt).getTime()).toBeGreaterThan(
-      new Date(before!.lastMessageAt).getTime(),
+    expect(new Date(after?.lastMessageAt).getTime()).toBeGreaterThan(
+      new Date(before?.lastMessageAt).getTime(),
     );
   });
 
@@ -60,7 +68,11 @@ describe.skipIf(skip)("messages repo", () => {
 
   it("listMessages with sinceSeq returns only newer", async () => {
     const { a, t } = await seed();
-    const m1 = await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "old" });
+    const m1 = await insertMessage(db, {
+      threadId: t.id,
+      fromPeer: a.id,
+      body: "old",
+    });
     await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "new" });
     const since = await listMessages(db, t.id, m1.seq);
     expect(since.map((m) => m.body)).toEqual(["new"]);
@@ -68,8 +80,16 @@ describe.skipIf(skip)("messages repo", () => {
 
   it("searchMessages finds by FTS keyword", async () => {
     const { a, t } = await seed();
-    await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "lottie animation 60fps" });
-    await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "unrelated text" });
+    await insertMessage(db, {
+      threadId: t.id,
+      fromPeer: a.id,
+      body: "lottie animation 60fps",
+    });
+    await insertMessage(db, {
+      threadId: t.id,
+      fromPeer: a.id,
+      body: "unrelated text",
+    });
     const hits = await searchMessages(db, "lottie");
     expect(hits.some((m) => m.body.includes("lottie"))).toBe(true);
     expect(hits.every((m) => !m.body.includes("unrelated"))).toBe(true);
@@ -83,8 +103,16 @@ describe.skipIf(skip)("messages repo", () => {
       email: `${TEST_PREFIX}outsider@x.com`,
     });
     const t2 = await createThread(db, { participants: [a.id, c.id] });
-    await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "kiwi-keyword apples" });
-    await insertMessage(db, { threadId: t2.id, fromPeer: a.id, body: "kiwi-keyword bananas" });
+    await insertMessage(db, {
+      threadId: t.id,
+      fromPeer: a.id,
+      body: "kiwi-keyword apples",
+    });
+    await insertMessage(db, {
+      threadId: t2.id,
+      fromPeer: a.id,
+      body: "kiwi-keyword bananas",
+    });
 
     const hitsForB = await searchMessages(db, "kiwi-keyword", { peer: b.id });
     expect(hitsForB.length).toBe(1);

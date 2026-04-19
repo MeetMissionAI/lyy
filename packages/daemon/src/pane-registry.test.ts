@@ -46,9 +46,13 @@ describe("PaneRegistry", () => {
 
   it("server cleans up its socket file on stop", async () => {
     const fs = await import("node:fs");
-    expect(fs.existsSync((registry as unknown as { sockPath: string }).sockPath)).toBe(true);
+    expect(
+      fs.existsSync((registry as unknown as { sockPath: string }).sockPath),
+    ).toBe(true);
     await registry.stop();
-    expect(fs.existsSync((registry as unknown as { sockPath: string }).sockPath)).toBe(false);
+    expect(
+      fs.existsSync((registry as unknown as { sockPath: string }).sockPath),
+    ).toBe(false);
     // Re-start for afterEach to not double-stop
     await registry.start();
   });

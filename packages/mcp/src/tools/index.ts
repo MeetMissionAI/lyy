@@ -26,7 +26,10 @@ export interface LyyTool {
   inputSchema: ToolInputSchema;
   /** Where the tool is exposed. Defaults to "anywhere". */
   availableIn?: "main-only" | "thread-only" | "anywhere";
-  execute: (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>;
+  execute: (
+    args: Record<string, unknown>,
+    ctx: ToolContext,
+  ) => Promise<unknown>;
 }
 
 export const allTools: LyyTool[] = [

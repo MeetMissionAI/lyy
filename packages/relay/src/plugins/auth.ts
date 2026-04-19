@@ -27,7 +27,9 @@ export const authPlugin = fp<AuthOptions>(
     app.decorateRequest("peerId", "");
 
     app.addHook("onRequest", async (req, reply) => {
-      if (publicPaths.some((p) => req.url === p || req.url.startsWith(`${p}?`))) {
+      if (
+        publicPaths.some((p) => req.url === p || req.url.startsWith(`${p}?`))
+      ) {
         return;
       }
       const header = req.headers.authorization;
@@ -35,7 +37,9 @@ export const authPlugin = fp<AuthOptions>(
         return reply.code(401).send({ error: "missing bearer token" });
       }
       try {
-        const payload = jwt.verify(header.slice(7), opts.secret) as { peerId?: string };
+        const payload = jwt.verify(header.slice(7), opts.secret) as {
+          peerId?: string;
+        };
         if (!payload.peerId) {
           return reply.code(401).send({ error: "token missing peerId" });
         }

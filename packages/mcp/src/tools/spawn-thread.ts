@@ -15,7 +15,10 @@ export const spawnThreadTool: LyyTool = {
     type: "object",
     properties: {
       thread_id: { type: "string", description: "Thread UUID" },
-      thread_short_id: { type: "number", description: "Short numeric id (for the pane name)" },
+      thread_short_id: {
+        type: "number",
+        description: "Short numeric id (for the pane name)",
+      },
     },
     required: ["thread_id", "thread_short_id"],
   },
@@ -23,7 +26,11 @@ export const spawnThreadTool: LyyTool = {
     const threadId = String(args.thread_id);
     const shortId = Number(args.thread_short_id);
     const sessionId = `lyy-thread-${shortId}`;
-    const env = { LYY_MODE: "thread", LYY_THREAD_ID: threadId, LYY_THREAD_SHORT_ID: String(shortId) };
+    const env = {
+      LYY_MODE: "thread",
+      LYY_THREAD_ID: threadId,
+      LYY_THREAD_SHORT_ID: String(shortId),
+    };
 
     const inZellij = !!process.env.ZELLIJ;
     if (inZellij) {
@@ -50,7 +57,9 @@ export const spawnThreadTool: LyyTool = {
       return { ok: true, via: "terminal", sessionId };
     }
 
-    throw new Error("spawn_thread requires zellij ($ZELLIJ set) or macOS Terminal");
+    throw new Error(
+      "spawn_thread requires zellij ($ZELLIJ set) or macOS Terminal",
+    );
   },
 };
 

@@ -1,13 +1,17 @@
 import {
-  installLaunchAgent,
-  type Identity,
-} from "@lyy/daemon";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
-import readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
+import { type Identity, installLaunchAgent } from "@lyy/daemon";
 import { which } from "../util/which.js";
 
 export interface InitOptions {
@@ -28,14 +32,16 @@ const CLAUDE_SETTINGS_PATH = resolve(homedir(), ".claude", "settings.json");
 
 export async function runInit(opts: InitOptions): Promise<void> {
   const relayUrl = opts.relayUrl ?? process.env.LYY_RELAY_URL;
-  if (!relayUrl) throw new Error("relay URL required: --relay-url or LYY_RELAY_URL env");
+  if (!relayUrl)
+    throw new Error("relay URL required: --relay-url or LYY_RELAY_URL env");
 
   const rl = readline.createInterface({ input: stdin, output: stdout });
   try {
     const code = opts.invite ?? (await rl.question("Invite code: "));
     const name = opts.name ?? (await rl.question("Your @name (e.g. leo): "));
     const email = opts.email ?? (await rl.question("Your email: "));
-    if (!code || !name || !email) throw new Error("invite, name, email all required");
+    if (!code || !name || !email)
+      throw new Error("invite, name, email all required");
 
     console.log(`[init] POST ${relayUrl}/pair ...`);
     const res = await fetch(`${relayUrl.replace(/\/$/, "")}/pair`, {
@@ -53,15 +59,21 @@ export async function runInit(opts: InitOptions): Promise<void> {
     console.log(`[init] wrote ${IDENTITY_PATH} (mode 0600)`);
 
     mergeClaudeSettings(CLAUDE_SETTINGS_PATH);
-    console.log(`[init] merged lyy MCP + statusLine + hooks into ${CLAUDE_SETTINGS_PATH}`);
+    console.log(
+      `[init] merged lyy MCP + statusLine + hooks into ${CLAUDE_SETTINGS_PATH}`,
+    );
 
     const installed = installSlashCommands();
-    console.log(`[init] installed ${installed} slash command(s) into ~/.claude/commands/`);
+    console.log(
+      `[init] installed ${installed} slash command(s) into ~/.claude/commands/`,
+    );
 
     if (opts.launchAgent !== false) {
       const daemonPath = which("lyy-daemon");
       if (!daemonPath) {
-        console.warn("[init] lyy-daemon not on PATH; skipping LaunchAgent install");
+        console.warn(
+          "[init] lyy-daemon not on PATH; skipping LaunchAgent install",
+        );
       } else {
         const { plistPath } = await installLaunchAgent({ daemonPath });
         console.log(`[init] installed LaunchAgent at ${plistPath} (loaded)`);
@@ -109,7 +121,9 @@ export function mergeClaudeSettings(path: string): void {
     try {
       current = JSON.parse(readFileSync(path, "utf8")) as ClaudeSettings;
     } catch {
-      throw new Error(`existing ${path} is not valid JSON; refusing to clobber`);
+      throw new Error(
+        `existing ${path} is not valid JSON; refusing to clobber`,
+      );
     }
   }
 
@@ -134,7 +148,9 @@ export function mergeClaudeSettings(path: string): void {
  * Add the lyy hook entry under each event without disturbing existing hooks.
  * Idempotent — re-running init won't add duplicates.
  */
-function mergeHooks(existing: Record<string, HookSpec[]>): Record<string, HookSpec[]> {
+function mergeHooks(
+  existing: Record<string, HookSpec[]>,
+): Record<string, HookSpec[]> {
   const next = { ...existing };
   for (const [event, command] of Object.entries(LYY_HOOK_COMMANDS)) {
     const groups = [...(next[event] ?? [])];
@@ -149,7 +165,10 @@ function mergeHooks(existing: Record<string, HookSpec[]>): Record<string, HookSp
 }
 
 /** Copy claude-assets/commands/*.md into ~/.claude/commands/. Returns count. */
-export function installSlashCommands(targetDir?: string, sourceDir?: string): number {
+export function installSlashCommands(
+  targetDir?: string,
+  sourceDir?: string,
+): number {
   const target = targetDir ?? resolve(homedir(), ".claude", "commands");
   if (!existsSync(target)) mkdirSync(target, { recursive: true });
 
@@ -167,5 +186,13 @@ function defaultSlashCommandsDir(): string {
   // Resolves relative to the built output location.
   // packages/cli/dist/commands/init.js → ../../../../claude-assets/commands
   const here = fileURLToPath(import.meta.url);
-  return resolve(dirname(here), "..", "..", "..", "..", "claude-assets", "commands");
+  return resolve(
+    dirname(here),
+    "..",
+    "..",
+    "..",
+    "..",
+    "claude-assets",
+    "commands",
+  );
 }

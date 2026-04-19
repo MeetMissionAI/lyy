@@ -1,9 +1,18 @@
 import { existsSync, mkdirSync, unlinkSync } from "node:fs";
-import { type Server, type Socket, createConnection, createServer } from "node:net";
+import {
+  type Server,
+  type Socket,
+  createConnection,
+  createServer,
+} from "node:net";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 
-export const DEFAULT_PANE_REGISTRY_SOCK = resolve(homedir(), ".lyy", "pane-registry.sock");
+export const DEFAULT_PANE_REGISTRY_SOCK = resolve(
+  homedir(),
+  ".lyy",
+  "pane-registry.sock",
+);
 
 interface RegisterOp {
   op: "register";
@@ -45,9 +54,9 @@ export class PaneRegistry {
     }
     this.server = createServer((socket) => this.handleConnection(socket));
     await new Promise<void>((resolveListen, reject) => {
-      this.server!.once("error", reject);
-      this.server!.listen(this.sockPath, () => {
-        this.server!.off("error", reject);
+      this.server?.once("error", reject);
+      this.server?.listen(this.sockPath, () => {
+        this.server?.off("error", reject);
         resolveListen();
       });
     });
@@ -55,7 +64,7 @@ export class PaneRegistry {
 
   async stop(): Promise<void> {
     if (!this.server) return;
-    await new Promise<void>((res) => this.server!.close(() => res()));
+    await new Promise<void>((res) => this.server?.close(() => res()));
     this.server = null;
     if (existsSync(this.sockPath)) {
       try {
@@ -133,7 +142,9 @@ export class PaneRegistryClient {
   }
 
   async query(threadShortId: number): Promise<string | null> {
-    const r = (await this.call({ op: "query", threadShortId })) as { paneId: string | null };
+    const r = (await this.call({ op: "query", threadShortId })) as {
+      paneId: string | null;
+    };
     return r.paneId;
   }
 

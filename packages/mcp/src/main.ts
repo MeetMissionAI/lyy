@@ -16,7 +16,9 @@ async function main(): Promise<void> {
       });
       const cleanup = async () => {
         try {
-          await ipc.call("unregister_pane", { threadShortId: mode.threadShortId });
+          await ipc.call("unregister_pane", {
+            threadShortId: mode.threadShortId,
+          });
         } catch {
           // best-effort
         }
@@ -25,7 +27,9 @@ async function main(): Promise<void> {
       process.on("SIGINT", cleanup);
       process.on("SIGTERM", cleanup);
     } catch (err) {
-      console.error(`[lyy-mcp] register_pane failed: ${(err as Error).message}`);
+      console.error(
+        `[lyy-mcp] register_pane failed: ${(err as Error).message}`,
+      );
     }
   }
 

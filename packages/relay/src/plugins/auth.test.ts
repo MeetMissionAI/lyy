@@ -7,7 +7,10 @@ const SECRET = "test-secret";
 let app: Awaited<ReturnType<typeof buildServer>>;
 
 beforeEach(async () => {
-  app = await buildServer({ db: undefined as unknown as Db, jwtSecret: SECRET });
+  app = await buildServer({
+    db: undefined as unknown as Db,
+    jwtSecret: SECRET,
+  });
 });
 
 afterEach(async () => {

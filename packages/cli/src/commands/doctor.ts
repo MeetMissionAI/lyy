@@ -1,7 +1,11 @@
-import { DEFAULT_IDENTITY_PATH, DEFAULT_MCP_SOCK, McpIpcClient } from "@lyy/daemon";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
+import {
+  DEFAULT_IDENTITY_PATH,
+  DEFAULT_MCP_SOCK,
+  McpIpcClient,
+} from "@lyy/daemon";
 import { which } from "../util/which.js";
 
 interface Check {
@@ -36,29 +40,50 @@ export async function runDoctor(): Promise<void> {
 
 function checkIdentity(): Check {
   if (!existsSync(DEFAULT_IDENTITY_PATH)) {
-    return { name: "identity", ok: false, detail: `${DEFAULT_IDENTITY_PATH} not found — run \`lyy init\`` };
+    return {
+      name: "identity",
+      ok: false,
+      detail: `${DEFAULT_IDENTITY_PATH} not found — run \`lyy init\``,
+    };
   }
   try {
     const id = JSON.parse(readFileSync(DEFAULT_IDENTITY_PATH, "utf8"));
-    return { name: "identity", ok: true, detail: `peerId=${id.peerId} relay=${id.relayUrl}` };
+    return {
+      name: "identity",
+      ok: true,
+      detail: `peerId=${id.peerId} relay=${id.relayUrl}`,
+    };
   } catch (err) {
-    return { name: "identity", ok: false, detail: `parse error: ${(err as Error).message}` };
+    return {
+      name: "identity",
+      ok: false,
+      detail: `parse error: ${(err as Error).message}`,
+    };
   }
 }
 
 function checkClaudeSettings(): Check {
   const path = resolve(homedir(), ".claude", "settings.json");
-  if (!existsSync(path)) return { name: "claude settings", ok: false, detail: `${path} missing` };
+  if (!existsSync(path))
+    return { name: "claude settings", ok: false, detail: `${path} missing` };
   try {
-    const raw = JSON.parse(readFileSync(path, "utf8")) as { mcpServers?: Record<string, unknown> };
+    const raw = JSON.parse(readFileSync(path, "utf8")) as {
+      mcpServers?: Record<string, unknown>;
+    };
     const ok = !!raw.mcpServers?.lyy;
     return {
       name: "claude settings",
       ok,
-      detail: ok ? "lyy MCP server registered" : "lyy MCP server NOT registered (re-run lyy init)",
+      detail: ok
+        ? "lyy MCP server registered"
+        : "lyy MCP server NOT registered (re-run lyy init)",
     };
   } catch (err) {
-    return { name: "claude settings", ok: false, detail: `parse error: ${(err as Error).message}` };
+    return {
+      name: "claude settings",
+      ok: false,
+      detail: `parse error: ${(err as Error).message}`,
+    };
   }
 }
 
@@ -73,14 +98,22 @@ function toolCheck(bin: string): Check {
 
 async function checkDaemon(): Promise<Check> {
   if (!existsSync(DEFAULT_MCP_SOCK)) {
-    return { name: "daemon", ok: false, detail: `${DEFAULT_MCP_SOCK} missing — daemon not running?` };
+    return {
+      name: "daemon",
+      ok: false,
+      detail: `${DEFAULT_MCP_SOCK} missing — daemon not running?`,
+    };
   }
   try {
     const ipc = new McpIpcClient();
     await ipc.call("list_inbox");
     return { name: "daemon", ok: true, detail: "MCP IPC responding" };
   } catch (err) {
-    return { name: "daemon", ok: false, detail: `IPC error: ${(err as Error).message}` };
+    return {
+      name: "daemon",
+      ok: false,
+      detail: `IPC error: ${(err as Error).message}`,
+    };
   }
 }
 
@@ -90,16 +123,24 @@ async function checkRelay(): Promise<Check> {
   }
   let relayUrl: string;
   try {
-    relayUrl = (JSON.parse(readFileSync(DEFAULT_IDENTITY_PATH, "utf8")) as { relayUrl: string })
-      .relayUrl;
+    relayUrl = (
+      JSON.parse(readFileSync(DEFAULT_IDENTITY_PATH, "utf8")) as {
+        relayUrl: string;
+      }
+    ).relayUrl;
   } catch {
     return { name: "relay", ok: false, detail: "skipped (bad identity)" };
   }
   try {
     const res = await fetch(`${relayUrl.replace(/\/$/, "")}/health`);
-    if (!res.ok) return { name: "relay", ok: false, detail: `${res.status} from /health` };
+    if (!res.ok)
+      return { name: "relay", ok: false, detail: `${res.status} from /health` };
     return { name: "relay", ok: true, detail: `${relayUrl} healthy` };
   } catch (err) {
-    return { name: "relay", ok: false, detail: `unreachable: ${(err as Error).message}` };
+    return {
+      name: "relay",
+      ok: false,
+      detail: `unreachable: ${(err as Error).message}`,
+    };
   }
 }

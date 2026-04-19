@@ -1,6 +1,6 @@
 import { createDb } from "@lyy/shared";
-import { attachSocket } from "./socket.js";
 import { buildServer } from "./server.js";
+import { attachSocket } from "./socket.js";
 
 interface BootEnv {
   databaseUrl: string;
@@ -22,7 +22,9 @@ function readEnv(env: NodeJS.ProcessEnv): BootEnv {
   };
 }
 
-export async function startRelay(env: NodeJS.ProcessEnv = process.env): Promise<{
+export async function startRelay(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{
   shutdown: () => Promise<void>;
 }> {
   const cfg = readEnv(env);

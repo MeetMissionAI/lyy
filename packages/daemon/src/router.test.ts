@@ -1,8 +1,8 @@
-import type { Message } from "@lyy/shared";
 import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Message } from "@lyy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PaneInbox } from "./pane-inbox.js";
 import { PaneRegistry } from "./pane-registry.js";
@@ -22,7 +22,9 @@ let registry: PaneRegistry;
 let relay: EventEmitter;
 let router: MessageRouter;
 
-function newMessage(opts: Partial<Message> & Pick<Message, "fromPeer" | "seq">): Message {
+function newMessage(
+  opts: Partial<Message> & Pick<Message, "fromPeer" | "seq">,
+): Message {
   return {
     id: `id-${opts.seq}`,
     threadId: THREAD_ID,
@@ -32,7 +34,9 @@ function newMessage(opts: Partial<Message> & Pick<Message, "fromPeer" | "seq">):
   };
 }
 
-async function seedThreadSummary(overrides: Partial<ThreadSummary> = {}): Promise<void> {
+async function seedThreadSummary(
+  overrides: Partial<ThreadSummary> = {},
+): Promise<void> {
   await state.write({
     unreadCount: 0,
     threads: [
@@ -74,7 +78,10 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-async function emit(env: { message: Message; threadShortId: number }): Promise<void> {
+async function emit(env: {
+  message: Message;
+  threadShortId: number;
+}): Promise<void> {
   relay.emit("message:new", env);
   // give async update time to settle
   await new Promise((r) => setTimeout(r, 10));
@@ -113,7 +120,10 @@ describe("MessageRouter", () => {
   it("from other, pane open: appends to inbox, no unread bump", async () => {
     await seedThreadSummary();
     // Register pane via in-memory map (skip the socket roundtrip for unit test)
-    (registry as unknown as { map: Map<number, string> }).map.set(SHORT_ID, "pane-xyz");
+    (registry as unknown as { map: Map<number, string> }).map.set(
+      SHORT_ID,
+      "pane-xyz",
+    );
 
     await emit({
       message: newMessage({ fromPeer: OTHER_PEER, seq: 9, body: "live ping" }),

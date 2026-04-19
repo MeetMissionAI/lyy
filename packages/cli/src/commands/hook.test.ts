@@ -37,17 +37,27 @@ describe("runHook", () => {
     process.env.LYY_THREAD_ID = "550e8400-e29b-41d4-a716-446655440000";
     process.env.LYY_THREAD_SHORT_ID = "12";
 
-    vi.spyOn(McpIpcClient.prototype, "call").mockImplementation(async (method) => {
-      if (method === "read_thread") {
-        return {
-          messages: [
-            { fromPeer: "peer-a", body: "hi", sentAt: "2026-04-19T10:00:00Z" },
-            { fromPeer: "peer-a", body: "you up?", sentAt: "2026-04-19T10:01:00Z" },
-          ],
-        };
-      }
-      throw new Error(`unexpected ${method}`);
-    });
+    vi.spyOn(McpIpcClient.prototype, "call").mockImplementation(
+      async (method) => {
+        if (method === "read_thread") {
+          return {
+            messages: [
+              {
+                fromPeer: "peer-a",
+                body: "hi",
+                sentAt: "2026-04-19T10:00:00Z",
+              },
+              {
+                fromPeer: "peer-a",
+                body: "you up?",
+                sentAt: "2026-04-19T10:01:00Z",
+              },
+            ],
+          };
+        }
+        throw new Error(`unexpected ${method}`);
+      },
+    );
 
     await runHook("session-start");
     const parsed = JSON.parse(stdoutBuf);
@@ -86,8 +96,12 @@ describe("runHook", () => {
     await runHook("prompt-submit");
     const parsed = JSON.parse(stdoutBuf);
     expect(parsed.hookSpecificOutput.hookEventName).toBe("UserPromptSubmit");
-    expect(parsed.hookSpecificOutput.additionalContext).toContain("1 new peer message");
-    expect(parsed.hookSpecificOutput.additionalContext).toContain("Lottie 1.2MB");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain(
+      "1 new peer message",
+    );
+    expect(parsed.hookSpecificOutput.additionalContext).toContain(
+      "Lottie 1.2MB",
+    );
   });
 
   it("hook never crashes when McpIpcClient throws", async () => {
@@ -95,7 +109,9 @@ describe("runHook", () => {
     process.env.LYY_THREAD_ID = "550e8400-e29b-41d4-a716-446655440000";
     process.env.LYY_THREAD_SHORT_ID = "12";
 
-    vi.spyOn(McpIpcClient.prototype, "call").mockRejectedValue(new Error("daemon down"));
+    vi.spyOn(McpIpcClient.prototype, "call").mockRejectedValue(
+      new Error("daemon down"),
+    );
     vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     await expect(runHook("prompt-submit")).resolves.toBeUndefined();

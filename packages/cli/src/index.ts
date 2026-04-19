@@ -2,20 +2,24 @@ import { Command } from "commander";
 import { runDefault } from "./commands/default.js";
 import { runDoctor } from "./commands/doctor.js";
 import { type HookEvent, runHook } from "./commands/hook.js";
-import { runInit, type InitOptions } from "./commands/init.js";
+import { type InitOptions, runInit } from "./commands/init.js";
 import { runStatusline } from "./commands/statusline.js";
 import { runThread } from "./commands/thread.js";
 
 export function buildCli(): Command {
   const program = new Command()
     .name("lyy")
-    .description("Link Your Yarn — peer-to-peer chat between Claude Code sessions")
+    .description(
+      "Link Your Yarn — peer-to-peer chat between Claude Code sessions",
+    )
     .version("0.1.0")
     .helpCommand(false);
 
   program
     .command("init")
-    .description("Pair with the relay (consume invite + install daemon + register MCP)")
+    .description(
+      "Pair with the relay (consume invite + install daemon + register MCP)",
+    )
     .option("--invite <code>", "Invite code from your admin")
     .option("--name <name>", "Your peer @name (e.g. leo)")
     .option("--email <email>", "Your team email")
@@ -32,17 +36,23 @@ export function buildCli(): Command {
 
   program
     .command("doctor")
-    .description("Health check: identity, daemon, relay, zellij, claude, settings.json")
+    .description(
+      "Health check: identity, daemon, relay, zellij, claude, settings.json",
+    )
     .action(async () => runDoctor());
 
   program
     .command("statusline")
-    .description("Print LYY statusLine (called by Claude Code statusLine config)")
+    .description(
+      "Print LYY statusLine (called by Claude Code statusLine config)",
+    )
     .action(async () => runStatusline());
 
   program
     .command("hook <event>")
-    .description("Internal hook dispatcher (session-start | prompt-submit | stop)")
+    .description(
+      "Internal hook dispatcher (session-start | prompt-submit | stop)",
+    )
     .action(async (event: string) => runHook(event as HookEvent));
 
   program.action(async () => runDefault());

@@ -1,4 +1,4 @@
-import { createServer, type Server as HttpServer } from "node:http";
+import { type Server as HttpServer, createServer } from "node:http";
 import { Server as IOServer } from "socket.io";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RelayClient } from "./relay-client.js";
@@ -32,7 +32,9 @@ describe("RelayClient", () => {
       token: "any",
       reconnection: false,
     });
-    const opened = new Promise<void>((res) => client.on("connected", () => res()));
+    const opened = new Promise<void>((res) =>
+      client.on("connected", () => res()),
+    );
     client.connect();
     await opened;
     expect(client.isConnected()).toBe(true);
@@ -56,7 +58,9 @@ describe("RelayClient", () => {
     client.send("ping", { n: 2 });
     expect(client.outboxSize()).toBe(2);
 
-    const opened = new Promise<void>((res) => client.on("connected", () => res()));
+    const opened = new Promise<void>((res) =>
+      client.on("connected", () => res()),
+    );
     client.connect();
     await opened;
 
@@ -94,8 +98,12 @@ describe("RelayClient", () => {
       reconnection: false,
     });
 
-    const disconnected = new Promise<void>((res) => client.on("disconnected", () => res()));
-    const opened = new Promise<void>((res) => client.on("connected", () => res()));
+    const disconnected = new Promise<void>((res) =>
+      client.on("disconnected", () => res()),
+    );
+    const opened = new Promise<void>((res) =>
+      client.on("connected", () => res()),
+    );
     client.connect();
     await opened;
     stack.io.disconnectSockets(true);

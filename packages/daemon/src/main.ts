@@ -24,8 +24,14 @@ export async function startDaemon(): Promise<DaemonHandles> {
 
   await paneRegistry.start();
 
-  const relayClient = new RelayClient({ url: identity.relayUrl, token: identity.jwt });
-  const relayHttp = new RelayHttp({ baseUrl: identity.relayUrl, jwt: identity.jwt });
+  const relayClient = new RelayClient({
+    url: identity.relayUrl,
+    token: identity.jwt,
+  });
+  const relayHttp = new RelayHttp({
+    baseUrl: identity.relayUrl,
+    jwt: identity.jwt,
+  });
 
   const router = new MessageRouter({
     relay: relayClient,
@@ -41,7 +47,9 @@ export async function startDaemon(): Promise<DaemonHandles> {
 
   relayClient.connect();
 
-  console.log(`[lyy-daemon] started for peer ${identity.peerId}, relay=${identity.relayUrl}`);
+  console.log(
+    `[lyy-daemon] started for peer ${identity.peerId}, relay=${identity.relayUrl}`,
+  );
 
   return {
     shutdown: async () => {

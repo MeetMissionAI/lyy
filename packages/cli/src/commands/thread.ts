@@ -1,5 +1,5 @@
-import { McpIpcClient } from "@lyy/daemon";
 import { spawn } from "node:child_process";
+import { McpIpcClient } from "@lyy/daemon";
 
 /**
  * `lyy thread <shortId>` — Open a peer thread in a new pane.
@@ -10,15 +10,18 @@ import { spawn } from "node:child_process";
  */
 export async function runThread(shortId: number): Promise<void> {
   if (!Number.isFinite(shortId) || shortId <= 0) {
-    throw new Error(`thread short id must be a positive integer, got ${shortId}`);
+    throw new Error(
+      `thread short id must be a positive integer, got ${shortId}`,
+    );
   }
 
   const ipc = new McpIpcClient();
-  const inbox = (await ipc.call<{ threads: { threadId: string; shortId: number }[] }>(
-    "list_inbox",
-  ));
+  const inbox = await ipc.call<{
+    threads: { threadId: string; shortId: number }[];
+  }>("list_inbox");
   const target = inbox.threads.find((t) => t.shortId === shortId);
-  if (!target) throw new Error(`no thread with shortId #${shortId} in local inbox`);
+  if (!target)
+    throw new Error(`no thread with shortId #${shortId} in local inbox`);
 
   const sessionId = `lyy-thread-${shortId}`;
   const env = {
@@ -37,7 +40,10 @@ export async function runThread(shortId: number): Promise<void> {
   console.log(`opened thread #${shortId} in new pane (${sessionId})`);
 }
 
-function runInZellij(sessionId: string, env: Record<string, string>): Promise<void> {
+function runInZellij(
+  sessionId: string,
+  env: Record<string, string>,
+): Promise<void> {
   const args = [
     "action",
     "new-pane",
@@ -50,10 +56,18 @@ function runInZellij(sessionId: string, env: Record<string, string>): Promise<vo
   return spawnP("zellij", args);
 }
 
-function runInTerminal(sessionId: string, env: Record<string, string>): Promise<void> {
-  const exports = Object.entries(env).map(([k, v]) => `export ${k}=${shellQuote(v)}`).join("; ");
+function runInTerminal(
+  sessionId: string,
+  env: Record<string, string>,
+): Promise<void> {
+  const exports = Object.entries(env)
+    .map(([k, v]) => `export ${k}=${shellQuote(v)}`)
+    .join("; ");
   const cmd = `${exports}; claude --session-id=${shellQuote(sessionId)}`;
-  return spawnP("osascript", ["-e", `tell app "Terminal" to do script ${shellQuote(cmd)}`]);
+  return spawnP("osascript", [
+    "-e",
+    `tell app "Terminal" to do script ${shellQuote(cmd)}`,
+  ]);
 }
 
 function spawnP(cmd: string, args: string[]): Promise<void> {

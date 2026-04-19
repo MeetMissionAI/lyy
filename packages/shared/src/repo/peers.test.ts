@@ -1,6 +1,11 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createDb } from "../db.js";
-import { createPeer, findPeerByEmail, findPeerByName, listPeers } from "./peers.js";
+import {
+  createPeer,
+  findPeerByEmail,
+  findPeerByName,
+  listPeers,
+} from "./peers.js";
 
 const url = process.env.DATABASE_URL;
 const skip = !url;
@@ -62,7 +67,10 @@ describe.skipIf(skip)("peers repo", () => {
     });
     const all = await listPeers(db);
     const testPeers = all.filter((p) => p.name.startsWith(TEST_PREFIX));
-    expect(testPeers.map((p) => p.name)).toEqual([`${TEST_PREFIX}a`, `${TEST_PREFIX}b`]);
+    expect(testPeers.map((p) => p.name)).toEqual([
+      `${TEST_PREFIX}a`,
+      `${TEST_PREFIX}b`,
+    ]);
   });
 
   it("rejects duplicate name (UNIQUE constraint)", async () => {
@@ -71,7 +79,10 @@ describe.skipIf(skip)("peers repo", () => {
       email: `${TEST_PREFIX}dup1@x.com`,
     });
     await expect(
-      createPeer(db, { name: `${TEST_PREFIX}dup`, email: `${TEST_PREFIX}dup2@x.com` })
+      createPeer(db, {
+        name: `${TEST_PREFIX}dup`,
+        email: `${TEST_PREFIX}dup2@x.com`,
+      }),
     ).rejects.toThrow();
   });
 });

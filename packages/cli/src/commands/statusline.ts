@@ -1,15 +1,23 @@
-import { DEFAULT_STATE_PATH, type State, type ThreadSummary } from "@lyy/daemon";
 import { existsSync, readFileSync } from "node:fs";
+import {
+  DEFAULT_STATE_PATH,
+  type State,
+  type ThreadSummary,
+} from "@lyy/daemon";
 
 /**
  * Render the LYY statusLine string. Format (Phase-3 design § Appendix A):
  *   📬 #12 @jianfeng · #18 @sarah +4 more · 🧵 #8 active
  * Empty output (newline only) when no inbox + no active panes.
  */
-export function renderStatusLine(state: State, opts: { maxShown?: number } = {}): string {
+export function renderStatusLine(
+  state: State,
+  opts: { maxShown?: number } = {},
+): string {
   const maxShown = opts.maxShown ?? 2;
 
-  const isUnreadVisible = (t: ThreadSummary): boolean => t.unread > 0 && !t.archived;
+  const isUnreadVisible = (t: ThreadSummary): boolean =>
+    t.unread > 0 && !t.archived;
   const isActive = (t: ThreadSummary): boolean => t.paneOpen && !t.archived;
 
   const unread = state.threads.filter(isUnreadVisible);
@@ -23,7 +31,8 @@ export function renderStatusLine(state: State, opts: { maxShown?: number } = {})
       .slice(0, maxShown)
       .map((t) => `#${t.shortId} @${t.peerName}`)
       .join(" · ");
-    const more = unread.length > maxShown ? ` +${unread.length - maxShown} more` : "";
+    const more =
+      unread.length > maxShown ? ` +${unread.length - maxShown} more` : "";
     parts.push(`📬 ${head}${more}`);
   }
   if (active) parts.push(`🧵 #${active.shortId} active`);

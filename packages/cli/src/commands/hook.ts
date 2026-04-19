@@ -75,16 +75,13 @@ function readThreadMode(env: NodeJS.ProcessEnv): ThreadMode | null {
 
 async function sessionStartContext(mode: ThreadMode): Promise<string> {
   const ipc = new McpIpcClient();
-  const { messages } = await ipc.call<{ messages: { fromPeer: string; body: string; sentAt: string }[] }>(
-    "read_thread",
-    { threadId: mode.threadId },
-  );
+  const { messages } = await ipc.call<{
+    messages: { fromPeer: string; body: string; sentAt: string }[];
+  }>("read_thread", { threadId: mode.threadId });
   if (!messages.length) {
     return `LYY thread #${mode.threadShortId}: no messages yet.`;
   }
-  const lines = messages.map(
-    (m) => `[${m.sentAt}] ${m.fromPeer}: ${m.body}`,
-  );
+  const lines = messages.map((m) => `[${m.sentAt}] ${m.fromPeer}: ${m.body}`);
   return `You are in LYY peer thread #${mode.threadShortId} (${mode.threadId}).
 You can use the 'reply' tool to respond. Thread history:
 
@@ -98,7 +95,8 @@ async function drainInboxContext(mode: ThreadMode): Promise<string> {
   });
   if (!entries.length) return "";
   const lines = entries.map(
-    (e) => `[${e.message.sentAt}] from ${e.message.fromPeer}: ${e.message.body}`,
+    (e) =>
+      `[${e.message.sentAt}] from ${e.message.fromPeer}: ${e.message.body}`,
   );
   return `📬 ${entries.length} new peer message${entries.length > 1 ? "s" : ""} since last turn:
 

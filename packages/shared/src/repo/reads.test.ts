@@ -1,9 +1,14 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db.js";
-import { createPeer } from "./peers.js";
 import { TEST_PREFIX, cleanupTestData } from "./_test-utils.ts";
 import { insertMessage } from "./messages.js";
-import { markRead, markThreadRead, unreadCountForPeer, unreadCountForThread } from "./reads.js";
+import { createPeer } from "./peers.js";
+import {
+  markRead,
+  markThreadRead,
+  unreadCountForPeer,
+  unreadCountForThread,
+} from "./reads.js";
 import { createThread } from "./threads.js";
 
 const url = process.env.DATABASE_URL;
@@ -28,8 +33,16 @@ async function seedConversation() {
     email: `${TEST_PREFIX}recv@x.com`,
   });
   const t = await createThread(db, { participants: [a.id, b.id] });
-  const m1 = await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "hello" });
-  const m2 = await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "world" });
+  const m1 = await insertMessage(db, {
+    threadId: t.id,
+    fromPeer: a.id,
+    body: "hello",
+  });
+  const m2 = await insertMessage(db, {
+    threadId: t.id,
+    fromPeer: a.id,
+    body: "world",
+  });
   return { a, b, t, m1, m2 };
 }
 

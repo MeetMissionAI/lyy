@@ -28,8 +28,15 @@ export class PaneInbox {
   }
 
   async append(threadShortId: number, message: Message): Promise<void> {
-    const entry: PaneInboxEntry = { message, receivedAt: new Date().toISOString() };
-    await appendFile(this.pathFor(threadShortId), `${JSON.stringify(entry)}\n`, "utf8");
+    const entry: PaneInboxEntry = {
+      message,
+      receivedAt: new Date().toISOString(),
+    };
+    await appendFile(
+      this.pathFor(threadShortId),
+      `${JSON.stringify(entry)}\n`,
+      "utf8",
+    );
   }
 
   /** Read pending entries and atomically truncate. Returns [] when empty. */

@@ -55,7 +55,10 @@ afterEach(async () => {
 
 describe("McpIpcServer", () => {
   it("send_message proxies to relayHttp.sendMessage", async () => {
-    const result = await client.call("send_message", { toPeer: "leo", body: "hi" });
+    const result = await client.call("send_message", {
+      toPeer: "leo",
+      body: "hi",
+    });
     expect(relayHttp.sendMessage).toHaveBeenCalledWith({
       toPeer: "leo",
       threadId: undefined,
@@ -87,7 +90,9 @@ describe("McpIpcServer", () => {
       sentAt: "2026-04-19T10:00:00.000Z",
       seq: 1,
     });
-    const result = await client.call<unknown[]>("drain_pane_inbox", { threadShortId: 12 });
+    const result = await client.call<unknown[]>("drain_pane_inbox", {
+      threadShortId: 12,
+    });
     expect(result.length).toBe(1);
     expect(await inbox.drain(12)).toEqual([]);
   });
@@ -114,8 +119,8 @@ describe("McpIpcServer", () => {
     (relayHttp.sendMessage as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error("relay 500"),
     );
-    await expect(client.call("send_message", { toPeer: "x", body: "y" })).rejects.toThrow(
-      /relay 500/,
-    );
+    await expect(
+      client.call("send_message", { toPeer: "x", body: "y" }),
+    ).rejects.toThrow(/relay 500/);
   });
 });

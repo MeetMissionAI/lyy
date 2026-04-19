@@ -38,7 +38,9 @@ describe("buildLaunchAgentPlist", () => {
       daemonPath: "/opt/lyy/d",
       args: ["--verbose", "--no-color"],
     });
-    expect(xml).toMatch(/<string>\/opt\/lyy\/d<\/string>[\s\S]*<string>--verbose<\/string>[\s\S]*<string>--no-color<\/string>/);
+    expect(xml).toMatch(
+      /<string>\/opt\/lyy\/d<\/string>[\s\S]*<string>--verbose<\/string>[\s\S]*<string>--no-color<\/string>/,
+    );
   });
 
   it("uses custom label and log path when provided", () => {

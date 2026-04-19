@@ -1,5 +1,11 @@
-import { describe, it, expect } from "vitest";
-import type { Attachment, InboxSummary, Message, Peer, Thread } from "./types.js";
+import { describe, expect, it } from "vitest";
+import type {
+  Attachment,
+  InboxSummary,
+  Message,
+  Peer,
+  Thread,
+} from "./types.js";
 
 describe("shared types", () => {
   it("Peer has required fields", () => {

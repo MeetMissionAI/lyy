@@ -40,8 +40,12 @@ describe("mergeClaudeSettings (Phase 6 extensions)", () => {
     const path = join(dir, "settings.json");
     mergeClaudeSettings(path);
     const result = JSON.parse(readFileSync(path, "utf8"));
-    expect(result.hooks.SessionStart[0].hooks[0].command).toBe("lyy hook session-start");
-    expect(result.hooks.UserPromptSubmit[0].hooks[0].command).toBe("lyy hook prompt-submit");
+    expect(result.hooks.SessionStart[0].hooks[0].command).toBe(
+      "lyy hook session-start",
+    );
+    expect(result.hooks.UserPromptSubmit[0].hooks[0].command).toBe(
+      "lyy hook prompt-submit",
+    );
     expect(result.hooks.Stop[0].hooks[0].command).toBe("lyy hook stop");
   });
 
@@ -65,8 +69,8 @@ describe("mergeClaudeSettings (Phase 6 extensions)", () => {
     );
     mergeClaudeSettings(path);
     const result = JSON.parse(readFileSync(path, "utf8"));
-    const commands = result.hooks.SessionStart.flatMap((g: { hooks: { command: string }[] }) =>
-      g.hooks.map((h) => h.command),
+    const commands = result.hooks.SessionStart.flatMap(
+      (g: { hooks: { command: string }[] }) => g.hooks.map((h) => h.command),
     );
     expect(commands).toContain("my-hook");
     expect(commands).toContain("lyy hook session-start");

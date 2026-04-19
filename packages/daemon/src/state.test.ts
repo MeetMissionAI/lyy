@@ -53,14 +53,21 @@ describe("StateStore", () => {
   });
 
   it("file content is valid JSON", async () => {
-    await store.write({ unreadCount: 1, threads: [VALID_THREAD], lastSeenSeq: {} });
+    await store.write({
+      unreadCount: 1,
+      threads: [VALID_THREAD],
+      lastSeenSeq: {},
+    });
     const raw = readFileSync(join(dir, "state.json"), "utf8");
     expect(() => JSON.parse(raw)).not.toThrow();
   });
 
   it("update applies a transform", async () => {
     await store.write({ unreadCount: 0, threads: [], lastSeenSeq: {} });
-    const next = await store.update((s) => ({ ...s, unreadCount: s.unreadCount + 1 }));
+    const next = await store.update((s) => ({
+      ...s,
+      unreadCount: s.unreadCount + 1,
+    }));
     expect(next.unreadCount).toBe(1);
     expect((await store.read()).unreadCount).toBe(1);
   });
@@ -77,7 +84,10 @@ describe("StateStore", () => {
 
   it("read throws on schema violation", async () => {
     const fs = await import("node:fs/promises");
-    await fs.writeFile(join(dir, "state.json"), JSON.stringify({ bogus: true }));
+    await fs.writeFile(
+      join(dir, "state.json"),
+      JSON.stringify({ bogus: true }),
+    );
     await expect(store.read()).rejects.toThrow(/Invalid state/);
   });
 });

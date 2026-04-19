@@ -1,10 +1,10 @@
 import {
+  type Db,
+  type Peer,
   createDb,
   createPeer,
   createThread,
   insertMessage,
-  type Db,
-  type Peer,
 } from "@lyy/shared";
 import jwt from "jsonwebtoken";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -62,7 +62,10 @@ async function seed(): Promise<Scenario> {
     name: `${TEST_PREFIX}bob`,
     email: `${TEST_PREFIX}bob@x.com`,
   });
-  const t = await createThread(db, { participants: [alice.id, bob.id], title: "test" });
+  const t = await createThread(db, {
+    participants: [alice.id, bob.id],
+    title: "test",
+  });
   const m1 = await insertMessage(db, {
     threadId: t.id,
     fromPeer: alice.id,
@@ -73,7 +76,13 @@ async function seed(): Promise<Scenario> {
     fromPeer: alice.id,
     body: "follow up",
   });
-  return { alice, bob, threadId: t.id, shortId: t.shortId, msgIds: [m1.id, m2.id] };
+  return {
+    alice,
+    bob,
+    threadId: t.id,
+    shortId: t.shortId,
+    msgIds: [m1.id, m2.id],
+  };
 }
 
 describe.skipIf(skip)("inbox routes", () => {
@@ -136,7 +145,13 @@ describe.skipIf(skip)("inbox routes", () => {
           url: "/threads",
           headers: authHeader(s.bob.id),
         });
-        expect(list.json().threads.find((t: { threadId: string }) => t.threadId === s.threadId)).toBeUndefined();
+        expect(
+          list
+            .json()
+            .threads.find(
+              (t: { threadId: string }) => t.threadId === s.threadId,
+            ),
+        ).toBeUndefined();
 
         // Alice still sees it
         const aliceList = await app.inject({
@@ -145,7 +160,11 @@ describe.skipIf(skip)("inbox routes", () => {
           headers: authHeader(s.alice.id),
         });
         expect(
-          aliceList.json().threads.find((t: { threadId: string }) => t.threadId === s.threadId),
+          aliceList
+            .json()
+            .threads.find(
+              (t: { threadId: string }) => t.threadId === s.threadId,
+            ),
         ).toBeDefined();
       } finally {
         await app.close();
@@ -194,7 +213,13 @@ describe.skipIf(skip)("inbox routes", () => {
           url: "/threads",
           headers: authHeader(s.bob.id),
         });
-        expect(list.json().threads.find((t: { threadId: string }) => t.threadId === s.threadId)).toBeDefined();
+        expect(
+          list
+            .json()
+            .threads.find(
+              (t: { threadId: string }) => t.threadId === s.threadId,
+            ),
+        ).toBeDefined();
       } finally {
         await app.close();
       }
@@ -214,7 +239,9 @@ describe.skipIf(skip)("inbox routes", () => {
         expect(res.statusCode).toBe(200);
         const body = res.json();
         expect(body.unreadCount).toBe(2);
-        const t = body.threads.find((x: { threadId: string }) => x.threadId === s.threadId);
+        const t = body.threads.find(
+          (x: { threadId: string }) => x.threadId === s.threadId,
+        );
         expect(t.shortId).toBe(s.shortId);
         expect(t.unread).toBe(2);
         expect(t.archived).toBe(false);
@@ -237,7 +264,9 @@ describe.skipIf(skip)("inbox routes", () => {
           url: "/threads?includeArchived=true",
           headers: authHeader(s.bob.id),
         });
-        const t = res.json().threads.find((x: { threadId: string }) => x.threadId === s.threadId);
+        const t = res
+          .json()
+          .threads.find((x: { threadId: string }) => x.threadId === s.threadId);
         expect(t).toBeDefined();
         expect(t.archived).toBe(true);
       } finally {
@@ -304,7 +333,9 @@ describe.skipIf(skip)("inbox routes", () => {
         });
         expect(res.statusCode).toBe(200);
         const msgs = res.json().messages;
-        expect(msgs.some((m: { body: string }) => m.body.includes("lottie"))).toBe(true);
+        expect(
+          msgs.some((m: { body: string }) => m.body.includes("lottie")),
+        ).toBe(true);
       } finally {
         await app.close();
       }

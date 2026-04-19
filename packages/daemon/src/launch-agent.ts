@@ -9,7 +9,10 @@ export function defaultLaunchAgentDir(home: string = homedir()): string {
   return resolve(home, "Library", "LaunchAgents");
 }
 
-export function defaultPlistPath(label: string = DEFAULT_LABEL, home: string = homedir()): string {
+export function defaultPlistPath(
+  label: string = DEFAULT_LABEL,
+  home: string = homedir(),
+): string {
   return resolve(defaultLaunchAgentDir(home), `${label}.plist`);
 }
 
@@ -30,7 +33,9 @@ export function buildLaunchAgentPlist(opts: PlistOptions): string {
   const label = opts.label ?? DEFAULT_LABEL;
   const log = opts.logPath ?? `/tmp/${label}.log`;
   const args = [opts.daemonPath, ...(opts.args ?? [])];
-  const argXml = args.map((a) => `    <string>${xmlEscape(a)}</string>`).join("\n");
+  const argXml = args
+    .map((a) => `    <string>${xmlEscape(a)}</string>`)
+    .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -62,7 +67,9 @@ export interface InstallOptions extends PlistOptions {
 }
 
 /** Writes the plist and (by default) loads it via launchctl. */
-export async function installLaunchAgent(opts: InstallOptions): Promise<{ plistPath: string }> {
+export async function installLaunchAgent(
+  opts: InstallOptions,
+): Promise<{ plistPath: string }> {
   const dir = opts.launchAgentDir ?? defaultLaunchAgentDir();
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const label = opts.label ?? DEFAULT_LABEL;
@@ -99,7 +106,10 @@ async function spawnLaunchctl(args: string[]): Promise<void> {
     proc.on("error", reject);
     proc.on("exit", (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`launchctl ${args.join(" ")} exited with code ${code}`));
+      else
+        reject(
+          new Error(`launchctl ${args.join(" ")} exited with code ${code}`),
+        );
     });
   });
 }

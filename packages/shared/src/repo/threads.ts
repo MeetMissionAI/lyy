@@ -9,7 +9,10 @@ interface ThreadRow {
   last_message_at: Date;
 }
 
-async function loadParticipants(db: Queryable, threadId: string): Promise<string[]> {
+async function loadParticipants(
+  db: Queryable,
+  threadId: string,
+): Promise<string[]> {
   const rows = await db<{ peer_id: string }[]>`
     SELECT peer_id FROM thread_participants WHERE thread_id = ${threadId}
   `;
@@ -32,7 +35,10 @@ export interface CreateThreadInput {
   title?: string;
 }
 
-export async function createThread(db: Queryable, input: CreateThreadInput): Promise<Thread> {
+export async function createThread(
+  db: Queryable,
+  input: CreateThreadInput,
+): Promise<Thread> {
   if (input.participants.length < 2) {
     throw new Error("Thread requires at least 2 participants");
   }
@@ -50,7 +56,10 @@ export async function createThread(db: Queryable, input: CreateThreadInput): Pro
   return mapRow(row, input.participants);
 }
 
-export async function getThreadById(db: Queryable, id: string): Promise<Thread | null> {
+export async function getThreadById(
+  db: Queryable,
+  id: string,
+): Promise<Thread | null> {
   const [row] = await db<ThreadRow[]>`
     SELECT id, short_id, title, created_at, last_message_at
     FROM threads WHERE id = ${id}
@@ -59,7 +68,10 @@ export async function getThreadById(db: Queryable, id: string): Promise<Thread |
   return mapRow(row, await loadParticipants(db, row.id));
 }
 
-export async function getThreadByShortId(db: Queryable, shortId: number): Promise<Thread | null> {
+export async function getThreadByShortId(
+  db: Queryable,
+  shortId: number,
+): Promise<Thread | null> {
   const [row] = await db<ThreadRow[]>`
     SELECT id, short_id, title, created_at, last_message_at
     FROM threads WHERE short_id = ${shortId}

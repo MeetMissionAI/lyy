@@ -1,5 +1,5 @@
-import jwt from "jsonwebtoken";
 import type { Server as HttpServer } from "node:http";
+import jwt from "jsonwebtoken";
 import { Server as IOServer } from "socket.io";
 import type { MessageEnvelope, ServerDeps } from "./server.js";
 
@@ -10,7 +10,10 @@ export const PEER_ROOM = (peerId: string) => `peer:${peerId}`;
  * so that POST /messages pushes "message:new" events to recipients'
  * peer rooms. Returns the IOServer for lifecycle control (close).
  */
-export function attachSocket(httpServer: HttpServer, deps: ServerDeps): IOServer {
+export function attachSocket(
+  httpServer: HttpServer,
+  deps: ServerDeps,
+): IOServer {
   const io = new IOServer(httpServer, { cors: { origin: "*" } });
 
   io.use((socket, next) => {

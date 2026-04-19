@@ -8,7 +8,10 @@ export const readThreadTool: LyyTool = {
     type: "object",
     properties: {
       thread_id: { type: "string", description: "UUID of the thread" },
-      since_seq: { type: "number", description: "Only messages with seq > this" },
+      since_seq: {
+        type: "number",
+        description: "Only messages with seq > this",
+      },
     },
     required: ["thread_id"],
   },

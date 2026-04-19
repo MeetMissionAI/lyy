@@ -3,7 +3,11 @@ import type { Queryable } from "../db.js";
 /**
  * Mark a set of messages as read for a peer. Idempotent (UPSERT).
  */
-export async function markRead(db: Queryable, messageIds: string[], peerId: string): Promise<void> {
+export async function markRead(
+  db: Queryable,
+  messageIds: string[],
+  peerId: string,
+): Promise<void> {
   if (messageIds.length === 0) return;
   await db`
     INSERT INTO message_reads (message_id, peer_id)
@@ -15,7 +19,11 @@ export async function markRead(db: Queryable, messageIds: string[], peerId: stri
 /**
  * Mark every message in a thread as read for a peer.
  */
-export async function markThreadRead(db: Queryable, threadId: string, peerId: string): Promise<void> {
+export async function markThreadRead(
+  db: Queryable,
+  threadId: string,
+  peerId: string,
+): Promise<void> {
   await db`
     INSERT INTO message_reads (message_id, peer_id)
     SELECT id, ${peerId} FROM messages
@@ -29,7 +37,10 @@ export async function markThreadRead(db: Queryable, threadId: string, peerId: st
  * Count unread messages addressed to peerId across all threads they participate in.
  * "Addressed to" = sent by someone else.
  */
-export async function unreadCountForPeer(db: Queryable, peerId: string): Promise<number> {
+export async function unreadCountForPeer(
+  db: Queryable,
+  peerId: string,
+): Promise<number> {
   const [row] = await db<{ count: string }[]>`
     SELECT count(*)::text AS count FROM messages m
     WHERE m.from_peer != ${peerId}

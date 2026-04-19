@@ -44,7 +44,12 @@ export class RelayClient extends EventEmitter {
     this.socket.on("disconnect", (reason) => this.emit("disconnected", reason));
     this.socket.on("connect_error", (err) => this.emit("connect_error", err));
 
-    for (const event of ["connected", "message:new", "message:read", "thread:archived"]) {
+    for (const event of [
+      "connected",
+      "message:new",
+      "message:read",
+      "thread:archived",
+    ]) {
       this.socket.on(event, (payload: unknown) => this.emit(event, payload));
     }
   }

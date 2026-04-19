@@ -61,7 +61,10 @@ export class RelayHttp {
       headers: this.headers(),
       body: JSON.stringify(input),
     });
-    if (!res.ok) throw new Error(`POST /messages failed: ${res.status} ${await res.text()}`);
+    if (!res.ok)
+      throw new Error(
+        `POST /messages failed: ${res.status} ${await res.text()}`,
+      );
     return (await res.json()) as SendMessageResult;
   }
 
@@ -79,7 +82,8 @@ export class RelayHttp {
       method: "POST",
       headers: this.headers(),
     });
-    if (!res.ok) throw new Error(`POST /threads/:id/archive failed: ${res.status}`);
+    if (!res.ok)
+      throw new Error(`POST /threads/:id/archive failed: ${res.status}`);
   }
 
   async unarchiveThread(threadId: string): Promise<void> {
@@ -87,7 +91,8 @@ export class RelayHttp {
       method: "DELETE",
       headers: this.headers(),
     });
-    if (!res.ok) throw new Error(`DELETE /threads/:id/archive failed: ${res.status}`);
+    if (!res.ok)
+      throw new Error(`DELETE /threads/:id/archive failed: ${res.status}`);
   }
 
   async listThreads(includeArchived = false): Promise<InboxResponse> {
@@ -100,12 +105,18 @@ export class RelayHttp {
     return (await res.json()) as InboxResponse;
   }
 
-  async readThread(threadId: string, sinceSeq?: number): Promise<{ messages: Message[] }> {
+  async readThread(
+    threadId: string,
+    sinceSeq?: number,
+  ): Promise<{ messages: Message[] }> {
     const qs = sinceSeq != null ? `&sinceSeq=${sinceSeq}` : "";
-    const res = await this.fetchImpl(this.url(`/messages?threadId=${threadId}${qs}`), {
-      method: "GET",
-      headers: this.headers(),
-    });
+    const res = await this.fetchImpl(
+      this.url(`/messages?threadId=${threadId}${qs}`),
+      {
+        method: "GET",
+        headers: this.headers(),
+      },
+    );
     if (!res.ok) throw new Error(`GET /messages failed: ${res.status}`);
     return (await res.json()) as { messages: Message[] };
   }

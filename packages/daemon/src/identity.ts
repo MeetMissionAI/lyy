@@ -11,7 +11,11 @@ const IdentitySchema = z.object({
 
 export type Identity = z.infer<typeof IdentitySchema>;
 
-export const DEFAULT_IDENTITY_PATH = resolve(homedir(), ".lyy", "identity.json");
+export const DEFAULT_IDENTITY_PATH = resolve(
+  homedir(),
+  ".lyy",
+  "identity.json",
+);
 
 export function loadIdentity(path: string = DEFAULT_IDENTITY_PATH): Identity {
   const raw = readFileSync(path, "utf8");

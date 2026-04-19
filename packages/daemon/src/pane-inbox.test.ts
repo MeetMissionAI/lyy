@@ -1,7 +1,7 @@
-import type { Message } from "@lyy/shared";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Message } from "@lyy/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PaneInbox } from "./pane-inbox.js";
 
@@ -17,7 +17,12 @@ const M1: Message = {
   seq: 1,
 };
 
-const M2: Message = { ...M1, id: "550e8400-e29b-41d4-a716-446655440003", body: "world", seq: 2 };
+const M2: Message = {
+  ...M1,
+  id: "550e8400-e29b-41d4-a716-446655440003",
+  body: "world",
+  seq: 2,
+};
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "lyy-inbox-"));
@@ -56,8 +61,12 @@ describe("PaneInbox", () => {
   it("inboxes for different threads are isolated", async () => {
     await inbox.append(12, M1);
     await inbox.append(34, M2);
-    expect((await inbox.drain(12)).map((e) => e.message.body)).toEqual(["hello"]);
-    expect((await inbox.drain(34)).map((e) => e.message.body)).toEqual(["world"]);
+    expect((await inbox.drain(12)).map((e) => e.message.body)).toEqual([
+      "hello",
+    ]);
+    expect((await inbox.drain(34)).map((e) => e.message.body)).toEqual([
+      "world",
+    ]);
   });
 
   it("malformed line is skipped, valid lines still returned", async () => {

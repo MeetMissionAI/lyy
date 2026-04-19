@@ -1,4 +1,4 @@
-import { createDb, type Db } from "@lyy/shared";
+import { type Db, createDb } from "@lyy/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { buildServer } from "../server.js";
 
@@ -14,7 +14,11 @@ async function cleanup() {
   await db`DELETE FROM invites WHERE code LIKE ${`${TEST_PREFIX}%`}`;
 }
 
-async function seedInvite(opts: { code: string; email: string; expiresInMs?: number }) {
+async function seedInvite(opts: {
+  code: string;
+  email: string;
+  expiresInMs?: number;
+}) {
   const expires = new Date(Date.now() + (opts.expiresInMs ?? 60_000));
   await db`
     INSERT INTO invites (code, for_email, expires_at)
@@ -77,7 +81,11 @@ describe.skipIf(skip)("POST /pair", () => {
       const r2 = await app.inject({
         method: "POST",
         url: "/pair",
-        payload: { code, name: `${TEST_PREFIX}sara2`, email: `${TEST_PREFIX}sara2@x.com` },
+        payload: {
+          code,
+          name: `${TEST_PREFIX}sara2`,
+          email: `${TEST_PREFIX}sara2@x.com`,
+        },
       });
       expect(r2.statusCode).toBe(410);
     } finally {

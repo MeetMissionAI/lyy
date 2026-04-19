@@ -25,7 +25,10 @@ export interface CreatePeerInput {
   displayName?: string;
 }
 
-export async function createPeer(db: Queryable, p: CreatePeerInput): Promise<Peer> {
+export async function createPeer(
+  db: Queryable,
+  p: CreatePeerInput,
+): Promise<Peer> {
   const [row] = await db<PeerRow[]>`
     INSERT INTO peers (name, email, display_name)
     VALUES (${p.name}, ${p.email}, ${p.displayName ?? null})
@@ -34,7 +37,10 @@ export async function createPeer(db: Queryable, p: CreatePeerInput): Promise<Pee
   return mapRow(row);
 }
 
-export async function findPeerByName(db: Queryable, name: string): Promise<Peer | null> {
+export async function findPeerByName(
+  db: Queryable,
+  name: string,
+): Promise<Peer | null> {
   const [row] = await db<PeerRow[]>`
     SELECT id, name, email, display_name, created_at
     FROM peers WHERE name = ${name} AND disabled = false
@@ -42,7 +48,10 @@ export async function findPeerByName(db: Queryable, name: string): Promise<Peer 
   return row ? mapRow(row) : null;
 }
 
-export async function findPeerByEmail(db: Queryable, email: string): Promise<Peer | null> {
+export async function findPeerByEmail(
+  db: Queryable,
+  email: string,
+): Promise<Peer | null> {
   const [row] = await db<PeerRow[]>`
     SELECT id, name, email, display_name, created_at
     FROM peers WHERE email = ${email} AND disabled = false

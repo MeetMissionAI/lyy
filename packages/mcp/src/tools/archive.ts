@@ -17,14 +17,17 @@ export const archiveThreadTool: LyyTool = {
 
 export const unarchiveThreadTool: LyyTool = {
   name: "unarchive_thread",
-  description: "Reverse archive_thread — re-show the thread in inbox / statusLine.",
+  description:
+    "Reverse archive_thread — re-show the thread in inbox / statusLine.",
   inputSchema: {
     type: "object",
     properties: { thread_id: { type: "string" } },
     required: ["thread_id"],
   },
   async execute(args, ctx) {
-    await ctx.ipc.call("unarchive_thread", { threadId: String(args.thread_id) });
+    await ctx.ipc.call("unarchive_thread", {
+      threadId: String(args.thread_id),
+    });
     return { ok: true };
   },
 };

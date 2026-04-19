@@ -1,6 +1,10 @@
 import type { Queryable } from "../db.js";
 
-export async function archiveThread(db: Queryable, threadId: string, peerId: string): Promise<void> {
+export async function archiveThread(
+  db: Queryable,
+  threadId: string,
+  peerId: string,
+): Promise<void> {
   await db`
     INSERT INTO thread_archives (thread_id, peer_id)
     VALUES (${threadId}, ${peerId})
@@ -8,11 +12,19 @@ export async function archiveThread(db: Queryable, threadId: string, peerId: str
   `;
 }
 
-export async function unarchiveThread(db: Queryable, threadId: string, peerId: string): Promise<void> {
+export async function unarchiveThread(
+  db: Queryable,
+  threadId: string,
+  peerId: string,
+): Promise<void> {
   await db`DELETE FROM thread_archives WHERE thread_id = ${threadId} AND peer_id = ${peerId}`;
 }
 
-export async function isArchived(db: Queryable, threadId: string, peerId: string): Promise<boolean> {
+export async function isArchived(
+  db: Queryable,
+  threadId: string,
+  peerId: string,
+): Promise<boolean> {
   const [row] = await db<{ exists: boolean }[]>`
     SELECT EXISTS (
       SELECT 1 FROM thread_archives WHERE thread_id = ${threadId} AND peer_id = ${peerId}

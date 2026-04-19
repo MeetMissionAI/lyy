@@ -1,5 +1,10 @@
 import { existsSync, mkdirSync, unlinkSync } from "node:fs";
-import { type Server, type Socket, createConnection, createServer } from "node:net";
+import {
+  type Server,
+  type Socket,
+  createConnection,
+  createServer,
+} from "node:net";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import type { PaneInbox } from "./pane-inbox.js";
@@ -22,9 +27,7 @@ interface Request {
   params?: Record<string, unknown>;
 }
 
-type Response =
-  | { id: number; result: unknown }
-  | { id: number; error: string };
+type Response = { id: number; result: unknown } | { id: number; error: string };
 
 /**
  * Daemon-side IPC endpoint that the @lyy/mcp server (loaded into a Claude
@@ -54,9 +57,9 @@ export class McpIpcServer {
     }
     this.server = createServer((socket) => this.handleConnection(socket));
     await new Promise<void>((resolveListen, reject) => {
-      this.server!.once("error", reject);
-      this.server!.listen(this.sockPath, () => {
-        this.server!.off("error", reject);
+      this.server?.once("error", reject);
+      this.server?.listen(this.sockPath, () => {
+        this.server?.off("error", reject);
         resolveListen();
       });
     });
@@ -64,7 +67,7 @@ export class McpIpcServer {
 
   async stop(): Promise<void> {
     if (!this.server) return;
-    await new Promise<void>((res) => this.server!.close(() => res()));
+    await new Promise<void>((res) => this.server?.close(() => res()));
     this.server = null;
     if (existsSync(this.sockPath)) {
       try {
@@ -104,11 +107,17 @@ export class McpIpcServer {
       const result = await this.invoke(req.method, req.params ?? {});
       return { id: req.id, result };
     } catch (err) {
-      return { id: req.id, error: err instanceof Error ? err.message : String(err) };
+      return {
+        id: req.id,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   }
 
-  private async invoke(method: string, params: Record<string, unknown>): Promise<unknown> {
+  private async invoke(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
     switch (method) {
       case "send_message": {
         const { toPeer, threadId, body, forceNew } = params as {
@@ -117,27 +126,37 @@ export class McpIpcServer {
           body: string;
           forceNew?: boolean;
         };
-        return this.deps.relayHttp.sendMessage({ toPeer, threadId, body, forceNew });
+        return this.deps.relayHttp.sendMessage({
+          toPeer,
+          threadId,
+          body,
+          forceNew,
+        });
       }
       case "list_inbox":
         return this.deps.state.read();
       case "read_thread": {
-        const { threadId, sinceSeq } = params as { threadId: string; sinceSeq?: number };
+        const { threadId, sinceSeq } = params as {
+          threadId: string;
+          sinceSeq?: number;
+        };
         return this.deps.relayHttp.readThread(threadId, sinceSeq);
       }
       case "register_pane": {
-        const { threadShortId, paneId } = params as { threadShortId: number; paneId: string };
-        (this.deps.paneRegistry as unknown as { map: Map<number, string> }).map.set(
-          threadShortId,
-          paneId,
-        );
+        const { threadShortId, paneId } = params as {
+          threadShortId: number;
+          paneId: string;
+        };
+        (
+          this.deps.paneRegistry as unknown as { map: Map<number, string> }
+        ).map.set(threadShortId, paneId);
         return { ok: true };
       }
       case "unregister_pane": {
         const { threadShortId } = params as { threadShortId: number };
-        (this.deps.paneRegistry as unknown as { map: Map<number, string> }).map.delete(
-          threadShortId,
-        );
+        (
+          this.deps.paneRegistry as unknown as { map: Map<number, string> }
+        ).map.delete(threadShortId);
         return { ok: true };
       }
       case "drain_pane_inbox": {
@@ -178,7 +197,10 @@ export class McpIpcClient {
   private nextId = 1;
   constructor(private readonly sockPath: string = DEFAULT_MCP_SOCK) {}
 
-  async call<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  async call<T = unknown>(
+    method: string,
+    params: Record<string, unknown> = {},
+  ): Promise<T> {
     const id = this.nextId++;
     const reply = await new Promise<Response>((resolve, reject) => {
       const socket = createConnection(this.sockPath, () => {

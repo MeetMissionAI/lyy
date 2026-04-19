@@ -1,4 +1,4 @@
-import { createDb, createPeer, type Db } from "@lyy/shared";
+import { type Db, createDb, createPeer } from "@lyy/shared";
 import jwt from "jsonwebtoken";
 import { type Socket, io as ioClient } from "socket.io-client";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -23,7 +23,8 @@ async function startStack(): Promise<Started> {
   const app = await buildServer(deps);
   await app.listen({ port: 0, host: "127.0.0.1" });
   const addr = app.server.address();
-  if (!addr || typeof addr === "string") throw new Error("listen address unexpected");
+  if (!addr || typeof addr === "string")
+    throw new Error("listen address unexpected");
   const io = attachSocket(app.server, deps);
   return {
     app,

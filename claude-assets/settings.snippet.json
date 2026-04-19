@@ -14,23 +14,17 @@
   "hooks": {
     "SessionStart": [
       {
-        "hooks": [
-          { "type": "command", "command": "lyy hook session-start" }
-        ]
+        "hooks": [{ "type": "command", "command": "lyy hook session-start" }]
       }
     ],
     "UserPromptSubmit": [
       {
-        "hooks": [
-          { "type": "command", "command": "lyy hook prompt-submit" }
-        ]
+        "hooks": [{ "type": "command", "command": "lyy hook prompt-submit" }]
       }
     ],
     "Stop": [
       {
-        "hooks": [
-          { "type": "command", "command": "lyy hook stop" }
-        ]
+        "hooks": [{ "type": "command", "command": "lyy hook stop" }]
       }
     ]
   }

@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db.js";
-import { createPeer } from "./peers.js";
 import { TEST_PREFIX, cleanupTestData } from "./_test-utils.ts";
+import { createPeer } from "./peers.js";
 import {
   createThread,
   findActiveThread,
@@ -37,7 +37,10 @@ async function seedTwoPeers() {
 describe.skipIf(skip)("threads repo", () => {
   it("createThread inserts thread + participants and assigns short_id", async () => {
     const { a, b } = await seedTwoPeers();
-    const t = await createThread(db, { participants: [a.id, b.id], title: "hello" });
+    const t = await createThread(db, {
+      participants: [a.id, b.id],
+      title: "hello",
+    });
     expect(t.id).toBeDefined();
     expect(typeof t.shortId).toBe("number");
     expect(t.shortId).toBeGreaterThan(0);

@@ -18,11 +18,16 @@ interface InviteRow {
   consumed_at: Date | null;
 }
 
-export async function pairRoute(app: FastifyInstance, deps: ServerDeps): Promise<void> {
+export async function pairRoute(
+  app: FastifyInstance,
+  deps: ServerDeps,
+): Promise<void> {
   app.post("/pair", async (req, reply) => {
     const parsed = PairBody.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid payload", details: parsed.error.issues });
+      return reply
+        .code(400)
+        .send({ error: "invalid payload", details: parsed.error.issues });
     }
     const { code, name, email, displayName } = parsed.data;
 
@@ -36,15 +41,18 @@ export async function pairRoute(app: FastifyInstance, deps: ServerDeps): Promise
           FOR UPDATE
         `;
         if (!invite) return { error: "invite not found" as const };
-        if (invite.consumed_at) return { error: "invite already consumed" as const };
-        if (invite.expires_at <= new Date()) return { error: "invite expired" as const };
+        if (invite.consumed_at)
+          return { error: "invite already consumed" as const };
+        if (invite.expires_at <= new Date())
+          return { error: "invite expired" as const };
         if (invite.for_email.toLowerCase() !== email.toLowerCase()) {
           return { error: "invite email mismatch" as const };
         }
 
         // Reject if peer with same email already exists
         const existing = await findPeerByEmail(tx, email);
-        if (existing) return { error: "peer already exists for this email" as const };
+        if (existing)
+          return { error: "peer already exists for this email" as const };
 
         const peer = await createPeer(tx, { name, email, displayName });
         await tx`UPDATE invites SET consumed_at = now() WHERE code = ${code}`;

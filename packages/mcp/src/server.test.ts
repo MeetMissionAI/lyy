@@ -6,18 +6,31 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { buildMcpServer } from "./server.js";
 
-function fakeIpc(impl: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}): McpIpcClient {
-  const call = vi.fn(async (method: string, params?: Record<string, unknown>) => {
-    const fn = impl[method];
-    if (fn) return fn(params);
-    return { ok: true, method, params };
-  });
+function fakeIpc(
+  impl: Partial<Record<string, ReturnType<typeof vi.fn>>> = {},
+): McpIpcClient {
+  const call = vi.fn(
+    async (method: string, params?: Record<string, unknown>) => {
+      const fn = impl[method];
+      if (fn) return fn(params);
+      return { ok: true, method, params };
+    },
+  );
   return { call } as unknown as McpIpcClient;
 }
 
 async function listTools(server: ReturnType<typeof buildMcpServer>["server"]) {
-  const handlers = (server as unknown as { _requestHandlers: Map<string, Function> })
-    ._requestHandlers;
+  const handlers = (
+    server as unknown as {
+      _requestHandlers: Map<
+        string,
+        (
+          req: { method: string; params: unknown },
+          ctx: unknown,
+        ) => Promise<unknown>
+      >;
+    }
+  )._requestHandlers;
   const handler = handlers.get(ListToolsRequestSchema.shape.method.value);
   if (!handler) throw new Error("ListTools handler not registered");
   return await handler({ method: "tools/list", params: {} }, {});
@@ -28,16 +41,31 @@ async function callTool(
   name: string,
   args: Record<string, unknown> = {},
 ) {
-  const handlers = (server as unknown as { _requestHandlers: Map<string, Function> })
-    ._requestHandlers;
+  const handlers = (
+    server as unknown as {
+      _requestHandlers: Map<
+        string,
+        (
+          req: { method: string; params: unknown },
+          ctx: unknown,
+        ) => Promise<unknown>
+      >;
+    }
+  )._requestHandlers;
   const handler = handlers.get(CallToolRequestSchema.shape.method.value);
   if (!handler) throw new Error("CallTool handler not registered");
-  return await handler({ method: "tools/call", params: { name, arguments: args } }, {});
+  return await handler(
+    { method: "tools/call", params: { name, arguments: args } },
+    {},
+  );
 }
 
 describe("buildMcpServer (main mode)", () => {
   it("lists main-mode tools (excludes thread-only 'reply')", async () => {
-    const { server } = buildMcpServer({ ipcClient: fakeIpc(), mode: { kind: "main" } });
+    const { server } = buildMcpServer({
+      ipcClient: fakeIpc(),
+      mode: { kind: "main" },
+    });
     const result = (await listTools(server)) as { tools: { name: string }[] };
     const names = result.tools.map((t) => t.name);
     expect(names).toContain("send_to");
@@ -53,10 +81,20 @@ describe("buildMcpServer (main mode)", () => {
 
   it("send_to → ipc.call('send_message', ...)", async () => {
     const ipc = fakeIpc({
-      send_message: vi.fn(async () => ({ messageId: "mid", threadShortId: 7, seq: 1 })),
+      send_message: vi.fn(async () => ({
+        messageId: "mid",
+        threadShortId: 7,
+        seq: 1,
+      })),
     });
-    const { server } = buildMcpServer({ ipcClient: ipc, mode: { kind: "main" } });
-    const res = (await callTool(server, "send_to", { peer: "leo", body: "hi" })) as {
+    const { server } = buildMcpServer({
+      ipcClient: ipc,
+      mode: { kind: "main" },
+    });
+    const res = (await callTool(server, "send_to", {
+      peer: "leo",
+      body: "hi",
+    })) as {
       content: { text: string }[];
     };
     expect(ipc.call).toHaveBeenCalledWith("send_message", {
@@ -72,16 +110,28 @@ describe("buildMcpServer (main mode)", () => {
   });
 
   it("list_inbox → ipc.call('list_inbox')", async () => {
-    const ipc = fakeIpc({ list_inbox: vi.fn(async () => ({ unreadCount: 3, threads: [] })) });
-    const { server } = buildMcpServer({ ipcClient: ipc, mode: { kind: "main" } });
-    const res = (await callTool(server, "list_inbox")) as { content: { text: string }[] };
+    const ipc = fakeIpc({
+      list_inbox: vi.fn(async () => ({ unreadCount: 3, threads: [] })),
+    });
+    const { server } = buildMcpServer({
+      ipcClient: ipc,
+      mode: { kind: "main" },
+    });
+    const res = (await callTool(server, "list_inbox")) as {
+      content: { text: string }[];
+    };
     expect(ipc.call).toHaveBeenCalledWith("list_inbox");
     expect(JSON.parse(res.content[0].text).unreadCount).toBe(3);
   });
 
   it("calling 'reply' in main mode throws (tool not enabled)", async () => {
-    const { server } = buildMcpServer({ ipcClient: fakeIpc(), mode: { kind: "main" } });
-    await expect(callTool(server, "reply", { body: "no" })).rejects.toThrow(/unknown tool/);
+    const { server } = buildMcpServer({
+      ipcClient: fakeIpc(),
+      mode: { kind: "main" },
+    });
+    await expect(callTool(server, "reply", { body: "no" })).rejects.toThrow(
+      /unknown tool/,
+    );
   });
 });
 
@@ -93,7 +143,10 @@ describe("buildMcpServer (thread mode)", () => {
   };
 
   it("exposes 'reply' but hides main-only tools (send_to, spawn_thread)", async () => {
-    const { server } = buildMcpServer({ ipcClient: fakeIpc(), mode: threadMode });
+    const { server } = buildMcpServer({
+      ipcClient: fakeIpc(),
+      mode: threadMode,
+    });
     const result = (await listTools(server)) as { tools: { name: string }[] };
     const names = result.tools.map((t) => t.name);
     expect(names).toContain("reply");

@@ -1,11 +1,11 @@
 import {
+  type Message,
+  type Thread,
   createThread,
   findActiveThread,
   findPeerByName,
   getThreadById,
   insertMessage,
-  type Message,
-  type Thread,
 } from "@lyy/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -26,13 +26,18 @@ type TxResult =
   | { error: string; status: number }
   | { thread: Thread; message: Message; recipients: string[] };
 
-export async function messagesRoute(app: FastifyInstance, deps: ServerDeps): Promise<void> {
+export async function messagesRoute(
+  app: FastifyInstance,
+  deps: ServerDeps,
+): Promise<void> {
   app.post("/messages", async (req, reply) => {
     const peerId = req.peerId;
 
     const parsed = PostBody.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid payload", details: parsed.error.issues });
+      return reply
+        .code(400)
+        .send({ error: "invalid payload", details: parsed.error.issues });
     }
     const input = parsed.data;
 
@@ -54,9 +59,13 @@ export async function messagesRoute(app: FastifyInstance, deps: ServerDeps): Pro
             return { error: "cannot send to self", status: 400 };
           }
 
-          thread = input.forceNew ? null : await findActiveThread(tx, peerId, other.id, 24);
+          thread = input.forceNew
+            ? null
+            : await findActiveThread(tx, peerId, other.id, 24);
           if (!thread) {
-            thread = await createThread(tx, { participants: [peerId, other.id] });
+            thread = await createThread(tx, {
+              participants: [peerId, other.id],
+            });
           }
         }
 

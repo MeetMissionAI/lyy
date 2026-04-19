@@ -45,7 +45,11 @@ describe("loadIdentity", () => {
 
   it("throws when peerId is not a UUID", () => {
     const p = writeIdentity(
-      JSON.stringify({ peerId: "not-uuid", jwt: "x", relayUrl: "https://x.com" }),
+      JSON.stringify({
+        peerId: "not-uuid",
+        jwt: "x",
+        relayUrl: "https://x.com",
+      }),
     );
     expect(() => loadIdentity(p)).toThrow(/Invalid identity/);
   });

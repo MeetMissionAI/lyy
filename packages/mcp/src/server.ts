@@ -1,3 +1,4 @@
+import { McpIpcClient } from "@lyy/daemon";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -5,9 +6,8 @@ import {
   ListToolsRequestSchema,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import { McpIpcClient } from "@lyy/daemon";
-import { allTools, type LyyTool, type ToolContext } from "./tools/index.js";
-import { detectMode, type Mode } from "./mode.js";
+import { type Mode, detectMode } from "./mode.js";
+import { type LyyTool, type ToolContext, allTools } from "./tools/index.js";
 
 export interface McpServerOptions {
   ipcClient?: McpIpcClient;
@@ -49,7 +49,15 @@ export function buildMcpServer(opts: McpServerOptions = {}): {
       context,
     );
     return {
-      content: [{ type: "text", text: typeof result === "string" ? result : JSON.stringify(result, null, 2) }],
+      content: [
+        {
+          type: "text",
+          text:
+            typeof result === "string"
+              ? result
+              : JSON.stringify(result, null, 2),
+        },
+      ],
     };
   });
 

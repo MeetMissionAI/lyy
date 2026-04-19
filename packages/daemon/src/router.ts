@@ -62,7 +62,10 @@ export class MessageRouter {
     await this.deps.state.update((s) => {
       const lastSeenSeq = {
         ...s.lastSeenSeq,
-        [message.threadId]: Math.max(s.lastSeenSeq[message.threadId] ?? 0, message.seq),
+        [message.threadId]: Math.max(
+          s.lastSeenSeq[message.threadId] ?? 0,
+          message.seq,
+        ),
       };
 
       let threads = s.threads;
@@ -72,9 +75,13 @@ export class MessageRouter {
         const updated: ThreadSummary = {
           ...existing,
           paneOpen,
-          lastBody: message.body.slice(0, this.deps.previewLen ?? DEFAULT_PREVIEW_LEN),
+          lastBody: message.body.slice(
+            0,
+            this.deps.previewLen ?? DEFAULT_PREVIEW_LEN,
+          ),
           lastMessageAt: message.sentAt,
-          unread: isFromSelf || paneOpen ? existing.unread : existing.unread + 1,
+          unread:
+            isFromSelf || paneOpen ? existing.unread : existing.unread + 1,
         };
         threads = [...threads];
         threads[idx] = updated;

@@ -27,7 +27,10 @@ export interface InsertMessageInput {
   body: string;
 }
 
-export async function insertMessage(db: Queryable, input: InsertMessageInput): Promise<Message> {
+export async function insertMessage(
+  db: Queryable,
+  input: InsertMessageInput,
+): Promise<Message> {
   // Two statements; caller wraps in db.begin() if it needs the pair atomic.
   // Standalone callers are protected against last-message-wins races by
   // GREATEST() — concurrent inserts never make last_message_at go backwards.

@@ -19,4 +19,6 @@ export type Db = ReturnType<typeof createDb>;
  * OR an in-transaction handle. Repo functions accept this so they can
  * be called from either context.
  */
-export type Queryable = Sql<Record<string, never>> | TransactionSql<Record<string, never>>;
+export type Queryable =
+  | Sql<Record<string, never>>
+  | TransactionSql<Record<string, never>>;

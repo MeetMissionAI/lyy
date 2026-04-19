@@ -26,33 +26,45 @@ const MessagesQuery = z.object({
   sinceSeq: z.coerce.number().int().nonnegative().optional(),
 });
 
-export async function inboxRoutes(app: FastifyInstance, deps: ServerDeps): Promise<void> {
+export async function inboxRoutes(
+  app: FastifyInstance,
+  deps: ServerDeps,
+): Promise<void> {
   app.post("/reads", async (req, reply) => {
     const parsed = ReadsBody.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid payload", details: parsed.error.issues });
+      return reply
+        .code(400)
+        .send({ error: "invalid payload", details: parsed.error.issues });
     }
     await markRead(deps.db, parsed.data.messageIds, req.peerId);
     return reply.code(204).send();
   });
 
-  app.post<{ Params: { id: string } }>("/threads/:id/archive", async (req, reply) => {
-    const thread = await getThreadById(deps.db, req.params.id);
-    if (!thread) return reply.code(404).send({ error: "thread not found" });
-    if (!thread.participants.includes(req.peerId)) {
-      return reply.code(403).send({ error: "not a participant" });
-    }
-    await archiveThread(deps.db, req.params.id, req.peerId);
-    return reply.code(204).send();
-  });
+  app.post<{ Params: { id: string } }>(
+    "/threads/:id/archive",
+    async (req, reply) => {
+      const thread = await getThreadById(deps.db, req.params.id);
+      if (!thread) return reply.code(404).send({ error: "thread not found" });
+      if (!thread.participants.includes(req.peerId)) {
+        return reply.code(403).send({ error: "not a participant" });
+      }
+      await archiveThread(deps.db, req.params.id, req.peerId);
+      return reply.code(204).send();
+    },
+  );
 
-  app.delete<{ Params: { id: string } }>("/threads/:id/archive", async (req, reply) => {
-    await unarchiveThread(deps.db, req.params.id, req.peerId);
-    return reply.code(204).send();
-  });
+  app.delete<{ Params: { id: string } }>(
+    "/threads/:id/archive",
+    async (req, reply) => {
+      await unarchiveThread(deps.db, req.params.id, req.peerId);
+      return reply.code(204).send();
+    },
+  );
 
   app.get("/threads", async (req, reply) => {
-    const includeArchived = (req.query as { includeArchived?: string })?.includeArchived === "true";
+    const includeArchived =
+      (req.query as { includeArchived?: string })?.includeArchived === "true";
     const [threads, unreadCount] = await Promise.all([
       listThreadsForPeer(deps.db, req.peerId, { includeArchived }),
       unreadCountForPeer(deps.db, req.peerId),
@@ -74,21 +86,29 @@ export async function inboxRoutes(app: FastifyInstance, deps: ServerDeps): Promi
   app.get("/messages", async (req, reply) => {
     const parsed = MessagesQuery.safeParse(req.query);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid query", details: parsed.error.issues });
+      return reply
+        .code(400)
+        .send({ error: "invalid query", details: parsed.error.issues });
     }
     const thread = await getThreadById(deps.db, parsed.data.threadId);
     if (!thread) return reply.code(404).send({ error: "thread not found" });
     if (!thread.participants.includes(req.peerId)) {
       return reply.code(403).send({ error: "not a participant" });
     }
-    const messages = await listMessages(deps.db, parsed.data.threadId, parsed.data.sinceSeq);
+    const messages = await listMessages(
+      deps.db,
+      parsed.data.threadId,
+      parsed.data.sinceSeq,
+    );
     return reply.send({ messages });
   });
 
   app.get("/search", async (req, reply) => {
     const parsed = SearchQuery.safeParse(req.query);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid query", details: parsed.error.issues });
+      return reply
+        .code(400)
+        .send({ error: "invalid query", details: parsed.error.issues });
     }
     const hits = await searchMessages(deps.db, parsed.data.q, {
       peer: req.peerId,

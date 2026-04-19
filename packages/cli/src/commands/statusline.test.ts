@@ -27,7 +27,9 @@ describe("renderStatusLine", () => {
 
   it("renders single unread thread", () => {
     expect(
-      renderStatusLine(state([baseThread({ shortId: 12, peerName: "jianfeng", unread: 1 })])),
+      renderStatusLine(
+        state([baseThread({ shortId: 12, peerName: "jianfeng", unread: 1 })]),
+      ),
     ).toBe("📬 #12 @jianfeng");
   });
 
@@ -80,7 +82,9 @@ describe("renderStatusLine", () => {
   it("returns empty when only archived threads have unread", () => {
     expect(
       renderStatusLine(
-        state([baseThread({ shortId: 1, peerName: "a", unread: 5, archived: true })]),
+        state([
+          baseThread({ shortId: 1, peerName: "a", unread: 5, archived: true }),
+        ]),
       ),
     ).toBe("");
   });

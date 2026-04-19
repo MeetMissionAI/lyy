@@ -1,8 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db.js";
-import { createPeer } from "./peers.js";
 import { TEST_PREFIX, cleanupTestData } from "./_test-utils.ts";
 import { archiveThread, isArchived, unarchiveThread } from "./archives.js";
+import { createPeer } from "./peers.js";
 import { createThread } from "./threads.js";
 
 const url = process.env.DATABASE_URL;
