@@ -1,12 +1,21 @@
-import type { Db } from "@lyy/shared";
+import type { Db, Message } from "@lyy/shared";
 import Fastify, { type FastifyInstance } from "fastify";
 import { authPlugin } from "./plugins/auth.js";
+import { messagesRoute } from "./routes/messages.js";
 import { pairRoute } from "./routes/pair.js";
+
+/** Notifier called after a message is persisted; Socket.IO wiring uses it. */
+export type MessageBroadcaster = (
+  message: Message,
+  recipientPeerIds: string[],
+) => void | Promise<void>;
 
 export interface ServerDeps {
   db: Db;
   jwtSecret: string;
   logger?: boolean;
+  /** Called after each successful POST /messages. Default: no-op. */
+  broadcaster?: MessageBroadcaster;
 }
 
 /**
@@ -23,6 +32,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get("/me", async (req) => ({ peerId: req.peerId }));
 
   await pairRoute(app, deps);
+  await messagesRoute(app, deps);
 
   return app;
 }
