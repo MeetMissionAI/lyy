@@ -29,44 +29,19 @@ describe("writeIdentity", () => {
   });
 });
 
-describe("mergeClaudeSettings", () => {
-  it("creates the file with lyy MCP entry when missing", () => {
-    const path = join(dir, "settings.json");
-    mergeClaudeSettings(path);
-    const result = JSON.parse(readFileSync(path, "utf8"));
-    expect(result.mcpServers.lyy).toEqual({ command: "lyy-mcp", args: [] });
-  });
-
-  it("preserves existing settings + other MCP servers", () => {
-    const path = join(dir, "settings.json");
-    writeFileSync(
-      path,
-      JSON.stringify({
-        theme: "dark",
-        mcpServers: { other: { command: "other-mcp" } },
-      }),
-    );
-    mergeClaudeSettings(path);
-    const result = JSON.parse(readFileSync(path, "utf8"));
-    expect(result.theme).toBe("dark");
-    expect(result.mcpServers.other).toEqual({ command: "other-mcp" });
-    expect(result.mcpServers.lyy).toEqual({ command: "lyy-mcp", args: [] });
-  });
-
-  it("overwrites existing lyy MCP entry (no stale config)", () => {
-    const path = join(dir, "settings.json");
-    writeFileSync(
-      path,
-      JSON.stringify({ mcpServers: { lyy: { command: "old-path" } } }),
-    );
-    mergeClaudeSettings(path);
-    const result = JSON.parse(readFileSync(path, "utf8"));
-    expect(result.mcpServers.lyy.command).toBe("lyy-mcp");
-  });
+describe("mergeClaudeSettings (statusLine + hooks only)", () => {
+  // MCP registration moved to `claude mcp add` — no longer lives in settings.json.
 
   it("throws when existing file is invalid JSON (don't clobber)", () => {
     const path = join(dir, "settings.json");
     writeFileSync(path, "{not json");
     expect(() => mergeClaudeSettings(path)).toThrow(/not valid JSON/);
+  });
+
+  it("does not add mcpServers (Claude Code reads those from ~/.claude.json)", () => {
+    const path = join(dir, "settings.json");
+    mergeClaudeSettings(path);
+    const result = JSON.parse(readFileSync(path, "utf8"));
+    expect(result.mcpServers).toBeUndefined();
   });
 });

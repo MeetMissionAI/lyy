@@ -60,8 +60,10 @@ export async function runInit(opts: InitOptions): Promise<void> {
 
     mergeClaudeSettings(CLAUDE_SETTINGS_PATH);
     console.log(
-      `[init] merged lyy MCP + statusLine + hooks into ${CLAUDE_SETTINGS_PATH}`,
+      `[init] merged statusLine + hooks into ${CLAUDE_SETTINGS_PATH}`,
     );
+
+    registerMcpWithClaude();
 
     const installed = installSlashCommands();
     console.log(
@@ -106,6 +108,38 @@ interface ClaudeSettings {
 
 const LYY_MCP_BIN = "lyy-mcp";
 const LYY_STATUSLINE_CMD = "lyy statusline";
+
+/**
+ * Claude Code reads MCP servers from ~/.claude.json (not ~/.claude/settings.json).
+ * Use the `claude` CLI so Claude Code owns its own config format.
+ */
+export function registerMcpWithClaude(): void {
+  const claude = which("claude");
+  if (!claude) {
+    console.warn(
+      "[init] claude CLI not on PATH — MCP not registered. Run manually:\n" +
+        `       claude mcp add lyy --scope user -- ${LYY_MCP_BIN}`,
+    );
+    return;
+  }
+  // Remove any stale entry first (idempotent re-init).
+  spawnSync(claude, ["mcp", "remove", "lyy", "--scope", "user"], {
+    stdio: "ignore",
+  });
+  const result = spawnSync(
+    claude,
+    ["mcp", "add", "lyy", "--scope", "user", "--", LYY_MCP_BIN],
+    { stdio: "inherit" },
+  );
+  if (result.status !== 0) {
+    console.warn(
+      `[init] \`claude mcp add lyy\` exited ${result.status}. Register manually if needed.`,
+    );
+    return;
+  }
+  console.log("[init] registered lyy MCP server with Claude Code");
+}
+
 const LYY_HOOK_COMMANDS: Record<string, string> = {
   SessionStart: "lyy hook session-start",
   UserPromptSubmit: "lyy hook prompt-submit",
@@ -127,9 +161,6 @@ export function mergeClaudeSettings(path: string): void {
     }
   }
 
-  const mcpServers = { ...(current.mcpServers ?? {}) };
-  mcpServers.lyy = { command: LYY_MCP_BIN, args: [] };
-
   const statusLine = current.statusLine ?? {
     type: "command",
     command: LYY_STATUSLINE_CMD,
@@ -140,7 +171,7 @@ export function mergeClaudeSettings(path: string): void {
 
   const hooks = mergeHooks(current.hooks ?? {});
 
-  const next: ClaudeSettings = { ...current, mcpServers, statusLine, hooks };
+  const next: ClaudeSettings = { ...current, statusLine, hooks };
   writeFileSync(path, JSON.stringify(next, null, 2), "utf8");
 }
 
