@@ -7,7 +7,7 @@ export type {
   Thread,
 } from "./types.js";
 
-export { createDb, type Db } from "./db.js";
+export { createDb, type Db, type Queryable } from "./db.js";
 
 export {
   createPeer,

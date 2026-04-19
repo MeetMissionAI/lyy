@@ -1,4 +1,4 @@
-import type { Db } from "../db.js";
+import type { Queryable } from "../db.js";
 import type { Message } from "../types.js";
 
 interface MessageRow {
@@ -27,20 +27,20 @@ export interface InsertMessageInput {
   body: string;
 }
 
-export async function insertMessage(db: Db, input: InsertMessageInput): Promise<Message> {
-  return await db.begin(async (tx) => {
-    const [row] = await tx<MessageRow[]>`
-      INSERT INTO messages (thread_id, from_peer, body)
-      VALUES (${input.threadId}, ${input.fromPeer}, ${input.body})
-      RETURNING id, thread_id, from_peer, body, sent_at, seq
-    `;
-    await tx`UPDATE threads SET last_message_at = ${row.sent_at} WHERE id = ${input.threadId}`;
-    return mapRow(row);
-  });
+export async function insertMessage(db: Queryable, input: InsertMessageInput): Promise<Message> {
+  // Not atomic on its own; caller wraps in db.begin() for strict
+  // last_message_at consistency. The UPDATE is idempotent on retry.
+  const [row] = await db<MessageRow[]>`
+    INSERT INTO messages (thread_id, from_peer, body)
+    VALUES (${input.threadId}, ${input.fromPeer}, ${input.body})
+    RETURNING id, thread_id, from_peer, body, sent_at, seq
+  `;
+  await db`UPDATE threads SET last_message_at = ${row.sent_at} WHERE id = ${input.threadId}`;
+  return mapRow(row);
 }
 
 export async function listMessages(
-  db: Db,
+  db: Queryable,
   threadId: string,
   sinceSeq = 0,
 ): Promise<Message[]> {
@@ -59,7 +59,7 @@ export interface SearchOptions {
 }
 
 export async function searchMessages(
-  db: Db,
+  db: Queryable,
   query: string,
   opts: SearchOptions = {},
 ): Promise<Message[]> {

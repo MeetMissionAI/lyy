@@ -1,4 +1,4 @@
-import type { Db } from "../db.js";
+import type { Queryable } from "../db.js";
 import type { Thread } from "../types.js";
 
 interface ThreadRow {
@@ -9,7 +9,7 @@ interface ThreadRow {
   last_message_at: Date;
 }
 
-async function loadParticipants(db: Db, threadId: string): Promise<string[]> {
+async function loadParticipants(db: Queryable, threadId: string): Promise<string[]> {
   const rows = await db<{ peer_id: string }[]>`
     SELECT peer_id FROM thread_participants WHERE thread_id = ${threadId}
   `;
@@ -32,24 +32,25 @@ export interface CreateThreadInput {
   title?: string;
 }
 
-export async function createThread(db: Db, input: CreateThreadInput): Promise<Thread> {
+export async function createThread(db: Queryable, input: CreateThreadInput): Promise<Thread> {
   if (input.participants.length < 2) {
     throw new Error("Thread requires at least 2 participants");
   }
-  return await db.begin(async (tx) => {
-    const [row] = await tx<ThreadRow[]>`
-      INSERT INTO threads (title)
-      VALUES (${input.title ?? null})
-      RETURNING id, short_id, title, created_at, last_message_at
-    `;
-    for (const pid of input.participants) {
-      await tx`INSERT INTO thread_participants (thread_id, peer_id) VALUES (${row.id}, ${pid})`;
-    }
-    return mapRow(row, input.participants);
-  });
+  // NB: not atomic on its own. Caller wraps in db.begin() when needed
+  // (e.g. pair route, send_to). Standalone use risks orphan thread on
+  // crash between the two statements; acceptable for tests.
+  const [row] = await db<ThreadRow[]>`
+    INSERT INTO threads (title)
+    VALUES (${input.title ?? null})
+    RETURNING id, short_id, title, created_at, last_message_at
+  `;
+  for (const pid of input.participants) {
+    await db`INSERT INTO thread_participants (thread_id, peer_id) VALUES (${row.id}, ${pid})`;
+  }
+  return mapRow(row, input.participants);
 }
 
-export async function getThreadById(db: Db, id: string): Promise<Thread | null> {
+export async function getThreadById(db: Queryable, id: string): Promise<Thread | null> {
   const [row] = await db<ThreadRow[]>`
     SELECT id, short_id, title, created_at, last_message_at
     FROM threads WHERE id = ${id}
@@ -58,7 +59,7 @@ export async function getThreadById(db: Db, id: string): Promise<Thread | null> 
   return mapRow(row, await loadParticipants(db, row.id));
 }
 
-export async function getThreadByShortId(db: Db, shortId: number): Promise<Thread | null> {
+export async function getThreadByShortId(db: Queryable, shortId: number): Promise<Thread | null> {
   const [row] = await db<ThreadRow[]>`
     SELECT id, short_id, title, created_at, last_message_at
     FROM threads WHERE short_id = ${shortId}
@@ -73,7 +74,7 @@ export async function getThreadByShortId(db: Db, shortId: number): Promise<Threa
  * "default to existing thread" routing in send_to.
  */
 export async function findActiveThread(
-  db: Db,
+  db: Queryable,
   peerA: string,
   peerB: string,
   withinHours = 24,
@@ -101,7 +102,7 @@ export interface ThreadListItem extends Thread {
  * computed per-peer (against thread_archives).
  */
 export async function listThreadsForPeer(
-  db: Db,
+  db: Queryable,
   peerId: string,
   opts: { includeArchived?: boolean } = {},
 ): Promise<ThreadListItem[]> {
