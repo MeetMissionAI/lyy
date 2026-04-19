@@ -1,6 +1,7 @@
 import type { Db, Message } from "@lyy/shared";
 import Fastify, { type FastifyInstance } from "fastify";
 import { authPlugin } from "./plugins/auth.js";
+import { inboxRoutes } from "./routes/inbox.js";
 import { messagesRoute } from "./routes/messages.js";
 import { pairRoute } from "./routes/pair.js";
 
@@ -33,6 +34,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
   await pairRoute(app, deps);
   await messagesRoute(app, deps);
+  await inboxRoutes(app, deps);
 
   return app;
 }
