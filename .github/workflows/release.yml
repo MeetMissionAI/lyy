@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to (re)build (e.g. v0.1.0)"
+        required: true
+
+jobs:
+  build-tarballs:
+    name: Build + upload CLI tarballs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create release + upload assets
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Deploy per-package prod bundles
+        # `pnpm deploy` resolves workspace + prod deps into a standalone dir.
+        # Output `out/<pkg>` is self-contained: `node dist/main.js` works.
+        run: |
+          set -e
+          mkdir -p out
+          for pkg in cli daemon mcp; do
+            pnpm --filter "@lyy/${pkg}" deploy --prod "out/${pkg}"
+            # Include the bin script + dist + node_modules
+            tar -czf "out/lyy-${pkg}.tgz" -C "out/${pkg}" .
+            ls -lh "out/lyy-${pkg}.tgz"
+          done
+
+      - name: Compute checksums
+        run: |
+          cd out
+          sha256sum lyy-cli.tgz lyy-daemon.tgz lyy-mcp.tgz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists — uploading assets (clobber)"
+            gh release upload "$TAG" \
+              out/lyy-cli.tgz out/lyy-daemon.tgz out/lyy-mcp.tgz out/SHA256SUMS.txt \
+              --clobber
+          else
+            gh release create "$TAG" \
+              out/lyy-cli.tgz out/lyy-daemon.tgz out/lyy-mcp.tgz out/SHA256SUMS.txt \
+              --title "$TAG" \
+              --generate-notes
+          fi
