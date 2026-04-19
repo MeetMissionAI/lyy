@@ -35,5 +35,14 @@ export {
   DEFAULT_MCP_SOCK,
   type McpIpcServerDeps,
 } from "./mcp-ipc.js";
+export {
+  buildLaunchAgentPlist,
+  installLaunchAgent,
+  uninstallLaunchAgent,
+  defaultLaunchAgentDir,
+  defaultPlistPath,
+  DEFAULT_LABEL,
+} from "./launch-agent.js";
+export { startDaemon, type DaemonHandles } from "./main.js";
 
 export const PACKAGE_NAME = "@lyy/daemon";

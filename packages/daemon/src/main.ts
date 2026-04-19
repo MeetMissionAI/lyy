@@ -1,0 +1,72 @@
+import { loadIdentity } from "./identity.js";
+import { McpIpcServer } from "./mcp-ipc.js";
+import { PaneInbox } from "./pane-inbox.js";
+import { PaneRegistry } from "./pane-registry.js";
+import { RelayClient } from "./relay-client.js";
+import { RelayHttp } from "./relay-http.js";
+import { MessageRouter } from "./router.js";
+import { StateStore } from "./state.js";
+
+export interface DaemonHandles {
+  shutdown: () => Promise<void>;
+}
+
+/**
+ * Boot the lyy-daemon process. Loads identity, opens the pane registry +
+ * MCP IPC sockets, connects to relay over WebSocket, wires the router,
+ * and returns a handle for graceful shutdown.
+ */
+export async function startDaemon(): Promise<DaemonHandles> {
+  const identity = loadIdentity();
+  const state = new StateStore();
+  const paneRegistry = new PaneRegistry();
+  const paneInbox = new PaneInbox();
+
+  await paneRegistry.start();
+
+  const relayClient = new RelayClient({ url: identity.relayUrl, token: identity.jwt });
+  const relayHttp = new RelayHttp({ baseUrl: identity.relayUrl, jwt: identity.jwt });
+
+  const router = new MessageRouter({
+    relay: relayClient,
+    paneRegistry,
+    paneInbox,
+    state,
+    selfPeerId: identity.peerId,
+  });
+  router.start();
+
+  const mcp = new McpIpcServer({ relayHttp, state, paneRegistry, paneInbox });
+  await mcp.start();
+
+  relayClient.connect();
+
+  console.log(`[lyy-daemon] started for peer ${identity.peerId}, relay=${identity.relayUrl}`);
+
+  return {
+    shutdown: async () => {
+      console.log("[lyy-daemon] shutting down");
+      relayClient.disconnect();
+      await mcp.stop();
+      await paneRegistry.stop();
+    },
+  };
+}
+
+// Bin entry: when invoked directly (not imported), boot + install signal handlers
+const isDirectInvocation = import.meta.url === `file://${process.argv[1]}`;
+if (isDirectInvocation) {
+  startDaemon()
+    .then((handles) => {
+      const onSignal = (sig: NodeJS.Signals) => {
+        console.log(`[lyy-daemon] received ${sig}`);
+        handles.shutdown().finally(() => process.exit(0));
+      };
+      process.on("SIGINT", onSignal);
+      process.on("SIGTERM", onSignal);
+    })
+    .catch((err) => {
+      console.error("[lyy-daemon] boot failed:", err);
+      process.exit(1);
+    });
+}
