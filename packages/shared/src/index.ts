@@ -7,4 +7,6 @@ export type {
   Thread,
 } from "./types.js";
 
+export { createDb, type Db } from "./db.js";
+
 export const PACKAGE_NAME = "@lyy/shared";
