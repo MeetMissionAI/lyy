@@ -1,8 +1,10 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { which } from "../util/which.js";
+
+const SESSION_NAME = "lyy";
 
 const ZELLIJ_LAYOUT = `layout {
   default_tab_template {
@@ -15,6 +17,10 @@ const ZELLIJ_LAYOUT = `layout {
     pane command="claude"
   }
 }
+`;
+
+// Disable session persistence so a dead "lyy" session doesn't block next launch.
+const ZELLIJ_CONFIG = `session_serialization false
 `;
 
 /**
@@ -35,16 +41,29 @@ export async function runDefault(): Promise<void> {
     return passthroughTo("claude", []);
   }
 
-  const dir = mkdtempSync(join(tmpdir(), "lyy-layout-"));
-  const layoutPath = join(dir, "main.kdl");
-  writeFileSync(layoutPath, ZELLIJ_LAYOUT);
+  // Kill any stale dead session from a previous crash. Silent on no-match.
+  spawnSync(zellij, ["delete-session", SESSION_NAME, "--force"], {
+    stdio: "ignore",
+  });
 
-  return passthroughTo(zellij, [
+  const dir = mkdtempSync(join(tmpdir(), "lyy-layout-"));
+  writeFileSync(join(dir, "main.kdl"), ZELLIJ_LAYOUT);
+  writeFileSync(join(dir, "config.kdl"), ZELLIJ_CONFIG);
+
+  await passthroughTo(zellij, [
+    "--config-dir",
+    dir,
     "--session",
-    "lyy",
+    SESSION_NAME,
     "--new-session-with-layout",
-    layoutPath,
+    join(dir, "main.kdl"),
   ]);
+
+  // Ensure session is removed after exit (belt + suspenders; config flag
+  // covers the clean case, this handles edge cases where it sticks).
+  spawnSync(zellij, ["delete-session", SESSION_NAME, "--force"], {
+    stdio: "ignore",
+  });
 }
 
 function passthroughTo(cmd: string, args: string[]): Promise<void> {
