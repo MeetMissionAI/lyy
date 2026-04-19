@@ -1,0 +1,49 @@
+# Build context optimization — keep what the Dockerfile actually COPYs small
+# (we still selectively COPY only relay + shared src; this just stops the
+# context upload from including everything).
+
+# Repo metadata
+.git
+.github
+.gitignore
+.dockerignore
+
+# Local env / secrets
+.env
+.env.local
+.env.*.local
+
+# Local LYY runtime state
+.lyy/
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+
+# Test / build artifacts
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/*.log
+*.log
+
+# Docs (we don't COPY them, but exclude defensively)
+docs/
+README.md
+CLAUDE.md
+
+# Other packages not needed for the relay image
+packages/cli
+packages/daemon
+packages/mcp
+
+# Claude Code assets (not used by relay)
+claude-assets/
+
+# Migrations are run out-of-band (psql against DIRECT_URL), not by the relay
+migrations/
+
+# Deploy manifests (not needed inside the image)
+deploy/
