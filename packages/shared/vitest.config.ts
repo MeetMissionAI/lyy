@@ -5,5 +5,8 @@ export default defineConfig({
     setupFiles: ["./test-setup.ts"],
     pool: "threads",
     poolOptions: { threads: { singleThread: true } },
+    // Supabase cold start + multi-step seeding easily exceeds 5s default
+    testTimeout: 30000,
+    hookTimeout: 30000,
   },
 });
