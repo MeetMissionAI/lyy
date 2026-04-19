@@ -1,6 +1,7 @@
 import type { Db } from "@lyy/shared";
 import Fastify, { type FastifyInstance } from "fastify";
 import { authPlugin } from "./plugins/auth.js";
+import { pairRoute } from "./routes/pair.js";
 
 export interface ServerDeps {
   db: Db;
@@ -20,6 +21,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get("/health", async () => ({ ok: true }));
 
   app.get("/me", async (req) => ({ peerId: req.peerId }));
+
+  await pairRoute(app, deps);
 
   return app;
 }
