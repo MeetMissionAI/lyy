@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 # Dev bin: run TS entry via tsx. No `pnpm build` needed — code edits live.
 set -e
-HERE="$(cd "$(dirname "$0")" && pwd)"
+
+# Resolve symlinks manually (macOS has no `readlink -f`)
+SOURCE="$0"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+HERE="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
 exec "$HERE/../node_modules/.bin/tsx" "$HERE/../src/main.ts" "$@"

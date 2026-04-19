@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
 set -e
-HERE="$(cd "$(dirname "$0")" && pwd)"
+SOURCE="$0"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+HERE="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 exec "$HERE/../node_modules/.bin/tsx" "$HERE/../src/main.ts" "$@"
