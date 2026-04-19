@@ -39,7 +39,19 @@ importers:
       '@lyy/shared':
         specifier: workspace:*
         version: link:../shared
+      socket.io-client:
+        specifier: ^4.8.3
+        version: 4.8.3
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       tsx:
         specifier: ^4.19.0
         version: 4.21.0
