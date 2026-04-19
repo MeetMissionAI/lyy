@@ -5,9 +5,15 @@ import { inboxRoutes } from "./routes/inbox.js";
 import { messagesRoute } from "./routes/messages.js";
 import { pairRoute } from "./routes/pair.js";
 
+/** Wire-format payload pushed to recipients on `message:new`. */
+export interface MessageEnvelope {
+  message: Message;
+  threadShortId: number;
+}
+
 /** Notifier called after a message is persisted; Socket.IO wiring uses it. */
 export type MessageBroadcaster = (
-  message: Message,
+  envelope: MessageEnvelope,
   recipientPeerIds: string[],
 ) => void | Promise<void>;
 

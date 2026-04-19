@@ -141,7 +141,10 @@ describe.skipIf(skip)("Socket.IO", () => {
     const { socket: bobSock, ack } = await connect(bob.id);
     await ack;
 
-    const received = new Promise<{ body: string; threadId: string }>((res) => {
+    const received = new Promise<{
+      message: { body: string; threadId: string };
+      threadShortId: number;
+    }>((res) => {
       bobSock.once("message:new", (m) => res(m));
     });
 
@@ -156,9 +159,10 @@ describe.skipIf(skip)("Socket.IO", () => {
     });
     expect(res.status).toBe(201);
 
-    const msg = await received;
-    expect(msg.body).toBe("ping");
-    expect(msg.threadId).toBeTypeOf("string");
+    const env = await received;
+    expect(env.message.body).toBe("ping");
+    expect(env.message.threadId).toBeTypeOf("string");
+    expect(typeof env.threadShortId).toBe("number");
   });
 
   it("sender does NOT receive their own message:new", async () => {

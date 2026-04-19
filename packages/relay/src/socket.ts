@@ -1,8 +1,7 @@
-import type { Message } from "@lyy/shared";
 import jwt from "jsonwebtoken";
 import type { Server as HttpServer } from "node:http";
 import { Server as IOServer } from "socket.io";
-import type { ServerDeps } from "./server.js";
+import type { MessageEnvelope, ServerDeps } from "./server.js";
 
 export const PEER_ROOM = (peerId: string) => `peer:${peerId}`;
 
@@ -32,11 +31,9 @@ export function attachSocket(httpServer: HttpServer, deps: ServerDeps): IOServer
     s.emit("connected", { peerId: s.data.peerId as string });
   });
 
-  // Wire the broadcaster: every persisted message is pushed to each
-  // recipient's per-peer room. Multiple devices per peer all receive.
-  deps.broadcaster = (message: Message, recipients: string[]) => {
+  deps.broadcaster = (envelope: MessageEnvelope, recipients: string[]) => {
     for (const peerId of recipients) {
-      io.to(PEER_ROOM(peerId)).emit("message:new", message);
+      io.to(PEER_ROOM(peerId)).emit("message:new", envelope);
     }
   };
 

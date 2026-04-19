@@ -1,4 +1,5 @@
-import { createDb, createPeer, createThread, type Db, type Message } from "@lyy/shared";
+import { createDb, createPeer, createThread, type Db } from "@lyy/shared";
+import type { MessageEnvelope } from "../server.js";
 import jwt from "jsonwebtoken";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildServer } from "../server.js";
@@ -72,8 +73,9 @@ describe.skipIf(skip)("POST /messages", () => {
       // Broadcaster fires after handler returns; give it a tick
       await new Promise((r) => setTimeout(r, 20));
       expect(broadcaster).toHaveBeenCalledOnce();
-      const [msg, recipients] = broadcaster.mock.calls[0] as [Message, string[]];
-      expect(msg.body).toBe("hi bob");
+      const [envelope, recipients] = broadcaster.mock.calls[0] as [MessageEnvelope, string[]];
+      expect(envelope.message.body).toBe("hi bob");
+      expect(typeof envelope.threadShortId).toBe("number");
       expect(recipients).toEqual([b.id]);
     } finally {
       await app.close();

@@ -74,11 +74,13 @@ export async function messagesRoute(app: FastifyInstance, deps: ServerDeps): Pro
         return reply.code(result.status).send({ error: result.error });
       }
 
-      // Fire-and-forget broadcast — must not fail the HTTP response
       if (deps.broadcaster) {
-        Promise.resolve(deps.broadcaster(result.message, result.recipients)).catch((err) =>
-          req.log.error({ err }, "broadcaster failed"),
-        );
+        Promise.resolve(
+          deps.broadcaster(
+            { message: result.message, threadShortId: result.thread.shortId },
+            result.recipients,
+          ),
+        ).catch((err) => req.log.error({ err }, "broadcaster failed"));
       }
 
       return reply.code(201).send({
