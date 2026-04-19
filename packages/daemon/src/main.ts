@@ -71,3 +71,8 @@ export async function run(): Promise<void> {
   process.on("SIGINT", onSignal);
   process.on("SIGTERM", onSignal);
 }
+
+run().catch((err) => {
+  console.error("[lyy-daemon] boot failed:", err);
+  process.exit(1);
+});

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -e
+HERE="$(cd "$(dirname "$0")" && pwd)"
+exec "$HERE/../node_modules/.bin/tsx" "$HERE/../src/main.ts" "$@"

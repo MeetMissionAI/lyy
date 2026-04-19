@@ -36,3 +36,8 @@ export async function run(): Promise<void> {
 
   await startStdio({ ipcClient: ipc, mode });
 }
+
+run().catch((err) => {
+  console.error("[lyy-mcp] fatal:", err);
+  process.exit(1);
+});
