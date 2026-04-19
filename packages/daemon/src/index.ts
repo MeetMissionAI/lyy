@@ -22,5 +22,18 @@ export {
   type MessageEnvelope,
   type RouterDeps,
 } from "./router.js";
+export {
+  RelayHttp,
+  type RelayHttpDeps,
+  type SendMessageInput,
+  type SendMessageResult,
+  type InboxResponse,
+} from "./relay-http.js";
+export {
+  McpIpcServer,
+  McpIpcClient,
+  DEFAULT_MCP_SOCK,
+  type McpIpcServerDeps,
+} from "./mcp-ipc.js";
 
 export const PACKAGE_NAME = "@lyy/daemon";
