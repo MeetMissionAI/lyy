@@ -10,13 +10,17 @@ import {
   listThreadsForPeer,
 } from "./threads.js";
 
-const db = createDb(process.env.DATABASE_URL!);
+const url = process.env.DATABASE_URL;
+const skip = !url;
+const db = url ? createDb(url) : (null as never);
 
-beforeEach(() => cleanupTestData(db));
-afterAll(async () => {
-  await cleanupTestData(db);
-  await db.end();
-});
+if (!skip) {
+  beforeEach(() => cleanupTestData(db));
+  afterAll(async () => {
+    await cleanupTestData(db);
+    await db.end();
+  });
+}
 
 async function seedTwoPeers() {
   const a = await createPeer(db, {
@@ -30,7 +34,7 @@ async function seedTwoPeers() {
   return { a, b };
 }
 
-describe("threads repo", () => {
+describe.skipIf(skip)("threads repo", () => {
   it("createThread inserts thread + participants and assigns short_id", async () => {
     const { a, b } = await seedTwoPeers();
     const t = await createThread(db, { participants: [a.id, b.id], title: "hello" });

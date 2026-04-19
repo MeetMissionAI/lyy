@@ -6,13 +6,17 @@ import { insertMessage } from "./messages.js";
 import { markRead, markThreadRead, unreadCountForPeer, unreadCountForThread } from "./reads.js";
 import { createThread } from "./threads.js";
 
-const db = createDb(process.env.DATABASE_URL!);
+const url = process.env.DATABASE_URL;
+const skip = !url;
+const db = url ? createDb(url) : (null as never);
 
-beforeEach(() => cleanupTestData(db));
-afterAll(async () => {
-  await cleanupTestData(db);
-  await db.end();
-});
+if (!skip) {
+  beforeEach(() => cleanupTestData(db));
+  afterAll(async () => {
+    await cleanupTestData(db);
+    await db.end();
+  });
+}
 
 async function seedConversation() {
   const a = await createPeer(db, {
@@ -29,7 +33,7 @@ async function seedConversation() {
   return { a, b, t, m1, m2 };
 }
 
-describe("reads repo", () => {
+describe.skipIf(skip)("reads repo", () => {
   it("unreadCountForPeer counts messages from others", async () => {
     const { b } = await seedConversation();
     expect(await unreadCountForPeer(db, b.id)).toBe(2);

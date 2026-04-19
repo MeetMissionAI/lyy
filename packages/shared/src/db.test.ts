@@ -2,22 +2,22 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createDb } from "./db.js";
 
 const url = process.env.DATABASE_URL;
-if (!url) throw new Error("DATABASE_URL not set; check .env at monorepo root");
+const skipIntegration = !url;
 
-const db = createDb(url);
+const db = url ? createDb(url) : null;
 
 afterAll(async () => {
-  await db.end();
+  await db?.end();
 });
 
-describe("db", () => {
+describe.skipIf(skipIntegration)("db", () => {
   it("connects and runs SELECT 1", async () => {
-    const [row] = await db<[{ one: number }]>`SELECT 1 AS one`;
+    const [row] = await db!<[{ one: number }]>`SELECT 1 AS one`;
     expect(row.one).toBe(1);
   });
 
   it("can see the peers table from migration 0001", async () => {
-    const [row] = await db<[{ exists: boolean }]>`
+    const [row] = await db!<[{ exists: boolean }]>`
       SELECT EXISTS (
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'peers'

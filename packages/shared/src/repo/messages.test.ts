@@ -5,13 +5,17 @@ import { TEST_PREFIX, cleanupTestData } from "./_test-utils.ts";
 import { insertMessage, listMessages, searchMessages } from "./messages.js";
 import { createThread, getThreadById } from "./threads.js";
 
-const db = createDb(process.env.DATABASE_URL!);
+const url = process.env.DATABASE_URL;
+const skip = !url;
+const db = url ? createDb(url) : (null as never);
 
-beforeEach(() => cleanupTestData(db));
-afterAll(async () => {
-  await cleanupTestData(db);
-  await db.end();
-});
+if (!skip) {
+  beforeEach(() => cleanupTestData(db));
+  afterAll(async () => {
+    await cleanupTestData(db);
+    await db.end();
+  });
+}
 
 async function seed() {
   const a = await createPeer(db, {
@@ -26,7 +30,7 @@ async function seed() {
   return { a, b, t };
 }
 
-describe("messages repo", () => {
+describe.skipIf(skip)("messages repo", () => {
   it("insertMessage assigns monotonic seq within thread", async () => {
     const { a, t } = await seed();
     const m1 = await insertMessage(db, { threadId: t.id, fromPeer: a.id, body: "first" });

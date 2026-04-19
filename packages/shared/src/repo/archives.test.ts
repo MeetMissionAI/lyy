@@ -5,13 +5,17 @@ import { TEST_PREFIX, cleanupTestData } from "./_test-utils.ts";
 import { archiveThread, isArchived, unarchiveThread } from "./archives.js";
 import { createThread } from "./threads.js";
 
-const db = createDb(process.env.DATABASE_URL!);
+const url = process.env.DATABASE_URL;
+const skip = !url;
+const db = url ? createDb(url) : (null as never);
 
-beforeEach(() => cleanupTestData(db));
-afterAll(async () => {
-  await cleanupTestData(db);
-  await db.end();
-});
+if (!skip) {
+  beforeEach(() => cleanupTestData(db));
+  afterAll(async () => {
+    await cleanupTestData(db);
+    await db.end();
+  });
+}
 
 async function seedThread() {
   const a = await createPeer(db, {
@@ -26,7 +30,7 @@ async function seedThread() {
   return { a, b, t };
 }
 
-describe("archives repo", () => {
+describe.skipIf(skip)("archives repo", () => {
   it("isArchived returns false initially", async () => {
     const { a, t } = await seedThread();
     expect(await isArchived(db, t.id, a.id)).toBe(false);

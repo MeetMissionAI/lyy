@@ -2,7 +2,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createDb } from "../db.js";
 import { createPeer, findPeerByEmail, findPeerByName, listPeers } from "./peers.js";
 
-const db = createDb(process.env.DATABASE_URL!);
+const url = process.env.DATABASE_URL;
+const skip = !url;
+const db = url ? createDb(url) : (null as never);
 
 const TEST_PREFIX = "lyytest-";
 
@@ -10,14 +12,16 @@ async function cleanup() {
   await db`DELETE FROM peers WHERE name LIKE ${`${TEST_PREFIX}%`}`;
 }
 
-beforeAll(cleanup);
-afterEach(cleanup);
-afterAll(async () => {
-  await cleanup();
-  await db.end();
-});
+if (!skip) {
+  beforeAll(cleanup);
+  afterEach(cleanup);
+  afterAll(async () => {
+    await cleanup();
+    await db.end();
+  });
+}
 
-describe("peers repo", () => {
+describe.skipIf(skip)("peers repo", () => {
   it("createPeer + findPeerByName roundtrip", async () => {
     const created = await createPeer(db, {
       name: `${TEST_PREFIX}leo`,
