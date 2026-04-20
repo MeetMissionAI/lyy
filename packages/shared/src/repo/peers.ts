@@ -66,3 +66,16 @@ export async function listPeers(db: Queryable): Promise<Peer[]> {
   `;
   return rows.map(mapRow);
 }
+
+export async function findPeersByIds(
+  db: Queryable,
+  ids: string[],
+): Promise<Peer[]> {
+  if (ids.length === 0) return [];
+  const rows = await db<PeerRow[]>`
+    SELECT id, name, email, display_name, created_at
+    FROM peers
+    WHERE id = ANY(${db.array(ids)}::uuid[]) AND disabled = false
+  `;
+  return rows.map(mapRow);
+}
