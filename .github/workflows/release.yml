@@ -38,7 +38,11 @@ jobs:
           mkdir -p out
           for pkg in cli daemon mcp; do
             pnpm --filter "@lyy/${pkg}" deploy --prod "out/${pkg}"
-            # Include the bin script + dist + node_modules
+          done
+          # cli needs claude-assets/ (slash command templates + settings
+          # snippet) at runtime; pnpm deploy ships only the package itself.
+          cp -R claude-assets "out/cli/claude-assets"
+          for pkg in cli daemon mcp; do
             tar -czf "out/lyy-${pkg}.tgz" -C "out/${pkg}" .
             ls -lh "out/lyy-${pkg}.tgz"
           done

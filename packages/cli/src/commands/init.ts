@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
@@ -117,8 +118,7 @@ export function registerMcpWithClaude(): void {
   const claude = which("claude");
   if (!claude) {
     console.warn(
-      "[init] claude CLI not on PATH — MCP not registered. Run manually:\n" +
-        `       claude mcp add lyy --scope user -- ${LYY_MCP_BIN}`,
+      `[init] claude CLI not on PATH — MCP not registered. Run manually:\n       claude mcp add lyy --scope user -- ${LYY_MCP_BIN}`,
     );
     return;
   }
@@ -214,16 +214,19 @@ export function installSlashCommands(
 }
 
 function defaultSlashCommandsDir(): string {
-  // Resolves relative to the built output location.
-  // packages/cli/dist/commands/init.js → ../../../../claude-assets/commands
+  // Two supported layouts:
+  //   dev (monorepo):   packages/cli/dist/commands/init.js
+  //                   → ../../../../claude-assets/commands
+  //   release tarball:  <pkg>/dist/commands/init.js
+  //                   → ../../claude-assets/commands (copied in by CI)
   const here = fileURLToPath(import.meta.url);
-  return resolve(
-    dirname(here),
-    "..",
-    "..",
-    "..",
-    "..",
-    "claude-assets",
-    "commands",
-  );
+  const hereDir = dirname(here);
+  const candidates = [
+    resolve(hereDir, "..", "..", "claude-assets", "commands"), // release
+    resolve(hereDir, "..", "..", "..", "..", "claude-assets", "commands"), // dev
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return candidates[0]; // doesn't exist; installSlashCommands no-ops
 }
