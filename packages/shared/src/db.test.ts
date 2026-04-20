@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createDb } from "./db.js";
 
 const url = process.env.DATABASE_URL;
-const skip = !url;
+const skip = !url || !!process.env.LYY_SKIP_DB;
 const db = url ? createDb(url) : (null as never);
 
 afterAll(async () => {

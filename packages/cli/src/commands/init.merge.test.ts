@@ -18,11 +18,11 @@ describe("mergeClaudeSettings (Phase 6 extensions)", () => {
     const path = join(dir, "settings.json");
     mergeClaudeSettings(path);
     const result = JSON.parse(readFileSync(path, "utf8"));
-    expect(result.statusLine).toEqual({
-      type: "command",
-      command: "lyy statusline",
-      refreshInterval: 5000,
-    });
+    expect(result.statusLine.type).toBe("command");
+    expect(result.statusLine.refreshInterval).toBe(5000);
+    // Command may be bare `lyy statusline` or absolute `/path/to/lyy statusline`
+    // depending on whether lyy is on PATH during test.
+    expect(result.statusLine.command).toMatch(/(^|\/)lyy statusline$/);
   });
 
   it("preserves existing statusLine if user customized", () => {
@@ -40,13 +40,15 @@ describe("mergeClaudeSettings (Phase 6 extensions)", () => {
     const path = join(dir, "settings.json");
     mergeClaudeSettings(path);
     const result = JSON.parse(readFileSync(path, "utf8"));
-    expect(result.hooks.SessionStart[0].hooks[0].command).toBe(
-      "lyy hook session-start",
+    expect(result.hooks.SessionStart[0].hooks[0].command).toMatch(
+      /(^|\/)lyy hook session-start$/,
     );
-    expect(result.hooks.UserPromptSubmit[0].hooks[0].command).toBe(
-      "lyy hook prompt-submit",
+    expect(result.hooks.UserPromptSubmit[0].hooks[0].command).toMatch(
+      /(^|\/)lyy hook prompt-submit$/,
     );
-    expect(result.hooks.Stop[0].hooks[0].command).toBe("lyy hook stop");
+    expect(result.hooks.Stop[0].hooks[0].command).toMatch(
+      /(^|\/)lyy hook stop$/,
+    );
   });
 
   it("hook merge is idempotent (no duplicates on re-run)", () => {
@@ -73,7 +75,9 @@ describe("mergeClaudeSettings (Phase 6 extensions)", () => {
       (g: { hooks: { command: string }[] }) => g.hooks.map((h) => h.command),
     );
     expect(commands).toContain("my-hook");
-    expect(commands).toContain("lyy hook session-start");
+    expect(
+      commands.some((c: string) => /(^|\/)lyy hook session-start$/.test(c)),
+    ).toBe(true);
   });
 });
 

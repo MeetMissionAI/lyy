@@ -6,7 +6,7 @@ import { buildServer } from "./server.js";
 import { attachSocket } from "./socket.js";
 
 const url = process.env.DATABASE_URL;
-const skip = !url;
+const skip = !url || !!process.env.LYY_SKIP_DB;
 const db: Db = url ? createDb(url) : (null as never);
 
 const SECRET = "test-secret";

@@ -4,6 +4,7 @@ import { runDefault } from "./commands/default.js";
 import { runDoctor } from "./commands/doctor.js";
 import { type HookEvent, runHook } from "./commands/hook.js";
 import { type InitOptions, runInit } from "./commands/init.js";
+import { runRepair } from "./commands/repair.js";
 import { runStatusline } from "./commands/statusline.js";
 import { runThread } from "./commands/thread.js";
 
@@ -34,6 +35,13 @@ export function buildCli(): Command {
     .action(async (shortId: string) => {
       await runThread(Number.parseInt(shortId, 10));
     });
+
+  program
+    .command("repair")
+    .description(
+      "Re-apply Claude Code wiring (MCP + hooks + statusLine) without pairing",
+    )
+    .action(async () => runRepair());
 
   program
     .command("doctor")

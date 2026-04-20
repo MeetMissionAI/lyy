@@ -97,8 +97,34 @@ interface ClaudeSettings {
   [k: string]: unknown;
 }
 
-const LYY_MCP_BIN = "lyy-mcp";
-const LYY_STATUSLINE_CMD = "lyy statusline";
+const LYY_MCP_BIN_NAME = "lyy-mcp";
+const LYY_CLI_BIN_NAME = "lyy";
+
+/**
+ * Resolve absolute path for a lyy-family binary. Claude Code (GUI on macOS)
+ * spawns MCP servers + hooks + statusLine commands without the user's shell
+ * PATH — ~/.lyy/bin isn't visible, so bare names fail with ENOENT.
+ */
+function resolveLyyBin(name: string): string {
+  const found = which(name);
+  if (found) return found;
+  const candidates = [
+    resolve(homedir(), ".lyy", "bin", name),
+    resolve(
+      homedir(),
+      ".lyy",
+      "runtime",
+      name.replace(/^lyy-?/, ""),
+      "bin",
+      name,
+    ),
+    `/usr/local/bin/${name}`,
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return name; // fallback — will still fail but surfaces clearer error
+}
 
 /**
  * Claude Code reads MCP servers from ~/.claude.json (not ~/.claude/settings.json).
@@ -106,9 +132,10 @@ const LYY_STATUSLINE_CMD = "lyy statusline";
  */
 export function registerMcpWithClaude(): void {
   const claude = which("claude");
+  const mcpBin = resolveLyyBin(LYY_MCP_BIN_NAME);
   if (!claude) {
     console.warn(
-      `[init] claude CLI not on PATH — MCP not registered. Run manually:\n       claude mcp add lyy --scope user -- ${LYY_MCP_BIN}`,
+      `[init] claude CLI not on PATH — MCP not registered. Run manually:\n       claude mcp add lyy --scope user -- ${mcpBin}`,
     );
     return;
   }
@@ -118,7 +145,7 @@ export function registerMcpWithClaude(): void {
   });
   const result = spawnSync(
     claude,
-    ["mcp", "add", "lyy", "--scope", "user", "--", LYY_MCP_BIN],
+    ["mcp", "add", "lyy", "--scope", "user", "--", mcpBin],
     { stdio: "inherit" },
   );
   if (result.status !== 0) {
@@ -127,14 +154,22 @@ export function registerMcpWithClaude(): void {
     );
     return;
   }
-  console.log("[init] registered lyy MCP server with Claude Code");
+  console.log(`[init] registered lyy MCP server with Claude Code (${mcpBin})`);
 }
 
-const LYY_HOOK_COMMANDS: Record<string, string> = {
-  SessionStart: "lyy hook session-start",
-  UserPromptSubmit: "lyy hook prompt-submit",
-  Stop: "lyy hook stop",
+const LYY_HOOK_SUBCOMMANDS: Record<string, string> = {
+  SessionStart: "hook session-start",
+  UserPromptSubmit: "hook prompt-submit",
+  Stop: "hook stop",
 };
+
+function buildHookCommands(lyyBin: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [event, sub] of Object.entries(LYY_HOOK_SUBCOMMANDS)) {
+    out[event] = `${lyyBin} ${sub}`;
+  }
+  return out;
+}
 
 export function mergeClaudeSettings(path: string): void {
   const dir = dirname(path);
@@ -151,15 +186,18 @@ export function mergeClaudeSettings(path: string): void {
     }
   }
 
+  const lyyBin = resolveLyyBin(LYY_CLI_BIN_NAME);
+  const statuslineCmd = `${lyyBin} statusline`;
+
   const statusLine = current.statusLine ?? {
     type: "command",
-    command: LYY_STATUSLINE_CMD,
+    command: statuslineCmd,
     refreshInterval: 5000,
   };
   // Force statusLine to lyy if user hasn't customized away from a default-ish command
-  if (!current.statusLine) statusLine.command = LYY_STATUSLINE_CMD;
+  if (!current.statusLine) statusLine.command = statuslineCmd;
 
-  const hooks = mergeHooks(current.hooks ?? {});
+  const hooks = mergeHooks(current.hooks ?? {}, lyyBin);
 
   const next: ClaudeSettings = { ...current, statusLine, hooks };
   writeFileSync(path, JSON.stringify(next, null, 2), "utf8");
@@ -171,18 +209,31 @@ export function mergeClaudeSettings(path: string): void {
  */
 function mergeHooks(
   existing: Record<string, HookSpec[]>,
+  lyyBin: string,
 ): Record<string, HookSpec[]> {
   const next = { ...existing };
-  for (const [event, command] of Object.entries(LYY_HOOK_COMMANDS)) {
+  const commands = buildHookCommands(lyyBin);
+  for (const [event, command] of Object.entries(commands)) {
     const groups = [...(next[event] ?? [])];
-    const lyyHook = { type: "command", command };
-    const alreadyHasLyy = groups.some((g) =>
-      g.hooks.some((h) => h.command === command),
-    );
-    if (!alreadyHasLyy) groups.push({ hooks: [lyyHook] });
-    next[event] = groups;
+    // Strip any stale lyy hook entry (bare `lyy hook ...` from older installs,
+    // or a different absolute path) before appending the current one.
+    const sub = LYY_HOOK_SUBCOMMANDS[event];
+    const filtered = groups
+      .map((g) => ({
+        hooks: g.hooks.filter(
+          (h) => !(h.type === "command" && isLyyHookCommand(h.command, sub)),
+        ),
+      }))
+      .filter((g) => g.hooks.length > 0);
+    filtered.push({ hooks: [{ type: "command", command }] });
+    next[event] = filtered;
   }
   return next;
+}
+
+function isLyyHookCommand(cmd: string, sub: string): boolean {
+  // match bare "lyy <sub>" or "<abspath>/lyy <sub>"
+  return /(^|\/)lyy\s/.test(cmd) && cmd.includes(sub);
 }
 
 /** Copy claude-assets/commands/*.md into ~/.claude/commands/. Returns count. */

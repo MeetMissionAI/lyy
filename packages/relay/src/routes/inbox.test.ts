@@ -11,7 +11,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { buildServer } from "../server.js";
 
 const url = process.env.DATABASE_URL;
-const skip = !url;
+const skip = !url || !!process.env.LYY_SKIP_DB;
 const db: Db = url ? createDb(url) : (null as never);
 
 const SECRET = "test-secret";

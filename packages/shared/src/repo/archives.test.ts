@@ -6,7 +6,7 @@ import { createPeer } from "./peers.js";
 import { createThread } from "./threads.js";
 
 const url = process.env.DATABASE_URL;
-const skip = !url;
+const skip = !url || !!process.env.LYY_SKIP_DB;
 const db = url ? createDb(url) : (null as never);
 
 if (!skip) {
