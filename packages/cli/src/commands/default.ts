@@ -1,5 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, openSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  openSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { DEFAULT_MCP_SOCK } from "@lyy/daemon";
@@ -65,11 +72,27 @@ export async function runDefault(): Promise<void> {
 }
 
 /**
- * Start lyy-daemon in the background if it's not already running.
- * Waits up to ~3s for the MCP socket to appear, then returns.
+ * Start lyy-daemon in background if not already running.
+ *
+ * Daemon is singleton — first `lyy` spawns it detached + unref'd so it
+ * survives Ctrl+C of the originating terminal. Subsequent `lyy` invocations
+ * (across terminals) probe the socket and reuse the same daemon.
+ *
+ * Probe ping() the socket rather than just checking file existence —
+ * a crashed daemon can leave a stale socket file that would otherwise
+ * trick us into skipping respawn.
  */
 async function ensureDaemonRunning(): Promise<void> {
-  if (existsSync(DEFAULT_MCP_SOCK)) return; // already running
+  if (await pingDaemon()) return;
+
+  // Stale socket from a dead daemon? Remove before respawn.
+  if (existsSync(DEFAULT_MCP_SOCK)) {
+    try {
+      unlinkSync(DEFAULT_MCP_SOCK);
+    } catch {
+      // ignore — listen() will surface real error
+    }
+  }
 
   const daemonBin = resolveDaemonBin();
   if (!daemonBin) {
@@ -88,15 +111,27 @@ async function ensureDaemonRunning(): Promise<void> {
   child.unref();
   console.log(`[lyy] started daemon (pid ${child.pid}, log: ${logPath})`);
 
-  // Wait for socket (up to 3s)
   const deadline = Date.now() + 3000;
   while (Date.now() < deadline) {
-    if (existsSync(DEFAULT_MCP_SOCK)) return;
+    if (await pingDaemon()) return;
     await sleep(100);
   }
-  console.warn(
-    "[lyy] daemon did not open MCP socket within 3s — check daemon.log",
-  );
+  console.warn("[lyy] daemon did not answer within 3s — check daemon.log");
+}
+
+/** Quick connect-and-drop to confirm daemon is alive behind the socket. */
+function pingDaemon(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!existsSync(DEFAULT_MCP_SOCK)) return resolve(false);
+    const s = createConnection(DEFAULT_MCP_SOCK);
+    const done = (ok: boolean) => {
+      s.destroy();
+      resolve(ok);
+    };
+    s.once("connect", () => done(true));
+    s.once("error", () => done(false));
+    setTimeout(() => done(false), 500);
+  });
 }
 
 function resolveDaemonBin(): string | null {
