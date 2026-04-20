@@ -68,6 +68,16 @@ for b in "cli/bin/lyy" "daemon/bin/lyy-daemon" "mcp/bin/lyy-mcp"; do
   [[ -f "$RUNTIME_DIR/$b" ]] || die "expected $RUNTIME_DIR/$b, missing"
 done
 
+# Rewrite shebang with absolute node path. Claude Code (macOS GUI) spawns MCP
+# servers with a minimal PATH that lacks nvm/brew node — `#!/usr/bin/env node`
+# fails with ENOENT. Using an absolute path skips PATH resolution entirely.
+NODE_BIN="$(command -v node)"
+info "pinning shebang → #!$NODE_BIN"
+for b in "cli/bin/lyy" "daemon/bin/lyy-daemon" "mcp/bin/lyy-mcp"; do
+  sed -i.bak "1s|.*|#!$NODE_BIN|" "$RUNTIME_DIR/$b"
+  rm -f "$RUNTIME_DIR/$b.bak"
+done
+
 # Symlink (user-owned dir by default → no sudo)
 mkdir -p "$BIN_DIR"
 SUDO=""
