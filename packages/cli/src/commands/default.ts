@@ -1,7 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { existsSync, mkdtempSync, openSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join, resolve as resolvePath } from "node:path";
+import { DEFAULT_MCP_SOCK } from "@lyy/daemon";
 import { which } from "../util/which.js";
 
 const SESSION_NAME = "lyy";
@@ -19,16 +20,16 @@ const ZELLIJ_LAYOUT = `layout {
 }
 `;
 
-// Disable session persistence so a dead "lyy" session doesn't block next launch.
 const ZELLIJ_CONFIG = `session_serialization false
 `;
 
 /**
  * Default `lyy` command: launch Claude Code inside a zellij session.
- * If already in zellij, just exec claude in the current pane.
- * If zellij not installed, fall back to plain claude.
+ * Ensures lyy-daemon is running first (auto-spawns detached if not).
  */
 export async function runDefault(): Promise<void> {
+  await ensureDaemonRunning();
+
   if (process.env.ZELLIJ) {
     return passthroughTo("claude", []);
   }
@@ -41,7 +42,6 @@ export async function runDefault(): Promise<void> {
     return passthroughTo("claude", []);
   }
 
-  // Kill any stale dead session from a previous crash. Silent on no-match.
   spawnSync(zellij, ["delete-session", SESSION_NAME, "--force"], {
     stdio: "ignore",
   });
@@ -59,11 +59,62 @@ export async function runDefault(): Promise<void> {
     join(dir, "main.kdl"),
   ]);
 
-  // Ensure session is removed after exit (belt + suspenders; config flag
-  // covers the clean case, this handles edge cases where it sticks).
   spawnSync(zellij, ["delete-session", SESSION_NAME, "--force"], {
     stdio: "ignore",
   });
+}
+
+/**
+ * Start lyy-daemon in the background if it's not already running.
+ * Waits up to ~3s for the MCP socket to appear, then returns.
+ */
+async function ensureDaemonRunning(): Promise<void> {
+  if (existsSync(DEFAULT_MCP_SOCK)) return; // already running
+
+  const daemonBin = resolveDaemonBin();
+  if (!daemonBin) {
+    console.warn(
+      "[lyy] lyy-daemon not found; slash commands / MCP will be unavailable.",
+    );
+    return;
+  }
+
+  const logPath = resolvePath(homedir(), ".lyy", "daemon.log");
+  const logFd = openSync(logPath, "a");
+  const child = spawn(daemonBin, [], {
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+  });
+  child.unref();
+  console.log(`[lyy] started daemon (pid ${child.pid}, log: ${logPath})`);
+
+  // Wait for socket (up to 3s)
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    if (existsSync(DEFAULT_MCP_SOCK)) return;
+    await sleep(100);
+  }
+  console.warn(
+    "[lyy] daemon did not open MCP socket within 3s — check daemon.log",
+  );
+}
+
+function resolveDaemonBin(): string | null {
+  const found = which("lyy-daemon");
+  if (found) return found;
+  const candidates = [
+    resolvePath(homedir(), ".lyy", "bin", "lyy-daemon"),
+    resolvePath(homedir(), ".lyy", "runtime", "daemon", "bin", "lyy-daemon"),
+    "/usr/local/bin/lyy-daemon",
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 function passthroughTo(cmd: string, args: string[]): Promise<void> {

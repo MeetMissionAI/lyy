@@ -12,7 +12,7 @@ import { dirname, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-import { type Identity, installLaunchAgent } from "@lyy/daemon";
+import type { Identity } from "@lyy/daemon";
 import { which } from "../util/which.js";
 
 export interface InitOptions {
@@ -71,17 +71,7 @@ export async function runInit(opts: InitOptions): Promise<void> {
       `[init] installed ${installed} slash command(s) into ~/.claude/commands/`,
     );
 
-    if (opts.launchAgent !== false) {
-      const daemonPath = which("lyy-daemon");
-      if (!daemonPath) {
-        console.warn(
-          "[init] lyy-daemon not on PATH; skipping LaunchAgent install",
-        );
-      } else {
-        const { plistPath } = await installLaunchAgent({ daemonPath });
-        console.log(`[init] installed LaunchAgent at ${plistPath} (loaded)`);
-      }
-    }
+    // LaunchAgent removed — daemon auto-starts when user runs `lyy`.
 
     console.log("");
     console.log(`✓ paired as @${name} (peerId=${peerId})`);

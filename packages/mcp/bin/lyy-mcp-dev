@@ -7,4 +7,4 @@ while [ -h "$SOURCE" ]; do
   [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 HERE="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-exec "$HERE/../node_modules/.bin/tsx" "$HERE/../src/main.ts" "$@"
+exec "$HERE/../node_modules/.bin/tsx" "$HERE/../src/bin.ts" "$@"
