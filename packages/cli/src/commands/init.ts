@@ -28,7 +28,10 @@ interface PairResponse {
   jwt: string;
 }
 
-const IDENTITY_PATH = resolve(homedir(), ".lyy", "identity.json");
+const IDENTITY_PATH = resolve(
+  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
+  "identity.json",
+);
 const CLAUDE_SETTINGS_PATH = resolve(homedir(), ".claude", "settings.json");
 
 export async function runInit(opts: InitOptions): Promise<void> {

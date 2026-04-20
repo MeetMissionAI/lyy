@@ -9,8 +9,7 @@ import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 
 export const DEFAULT_PANE_REGISTRY_SOCK = resolve(
-  homedir(),
-  ".lyy",
+  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
   "pane-registry.sock",
 );
 

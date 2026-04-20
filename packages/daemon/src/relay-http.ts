@@ -1,4 +1,4 @@
-import type { Message } from "@lyy/shared";
+import type { Message, Peer } from "@lyy/shared";
 
 export interface RelayHttpDeps {
   baseUrl: string;
@@ -119,6 +119,15 @@ export class RelayHttp {
     );
     if (!res.ok) throw new Error(`GET /messages failed: ${res.status}`);
     return (await res.json()) as { messages: Message[] };
+  }
+
+  async listPeers(): Promise<{ peers: Peer[] }> {
+    const res = await this.fetchImpl(this.url("/peers"), {
+      method: "GET",
+      headers: this.headers(),
+    });
+    if (!res.ok) throw new Error(`GET /peers failed: ${res.status}`);
+    return (await res.json()) as { peers: Peer[] };
   }
 
   async search(q: string, limit = 50): Promise<{ messages: Message[] }> {

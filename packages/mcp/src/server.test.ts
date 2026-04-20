@@ -71,6 +71,7 @@ describe("buildMcpServer (main mode)", () => {
     expect(names).toContain("send_to");
     expect(names).toContain("list_inbox");
     expect(names).toContain("list_threads");
+    expect(names).toContain("list_peers");
     expect(names).toContain("read_thread");
     expect(names).toContain("archive_thread");
     expect(names).toContain("unarchive_thread");
@@ -122,6 +123,26 @@ describe("buildMcpServer (main mode)", () => {
     };
     expect(ipc.call).toHaveBeenCalledWith("list_inbox");
     expect(JSON.parse(res.content[0].text).unreadCount).toBe(3);
+  });
+
+  it("list_peers → ipc.call('list_peers')", async () => {
+    const ipc = fakeIpc({
+      list_peers: vi.fn(async () => ({
+        peers: [{ id: "p1", name: "Alice", email: "a@x.com" }],
+      })),
+    });
+    const { server } = buildMcpServer({
+      ipcClient: ipc,
+      mode: { kind: "main" },
+    });
+    const res = (await callTool(server, "list_peers")) as {
+      content: { text: string }[];
+    };
+    expect(ipc.call).toHaveBeenCalledWith("list_peers");
+    const parsed = JSON.parse(res.content[0].text) as {
+      peers: { name: string }[];
+    };
+    expect(parsed.peers[0].name).toBe("Alice");
   });
 
   it("calling 'reply' in main mode throws (tool not enabled)", async () => {

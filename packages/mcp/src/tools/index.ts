@@ -2,6 +2,7 @@ import type { McpIpcClient } from "@lyy/daemon";
 import type { Mode } from "../mode.js";
 import { archiveThreadTool, unarchiveThreadTool } from "./archive.js";
 import { listInboxTool, listThreadsTool } from "./inbox.js";
+import { listPeersTool } from "./list-peers.js";
 import { readThreadTool } from "./read-thread.js";
 import { replyTool } from "./reply.js";
 import { searchTool } from "./search.js";
@@ -36,6 +37,7 @@ export const allTools: LyyTool[] = [
   sendToTool,
   listInboxTool,
   listThreadsTool,
+  listPeersTool,
   readThreadTool,
   replyTool,
   spawnThreadTool,

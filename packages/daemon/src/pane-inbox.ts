@@ -4,7 +4,10 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import type { Message } from "@lyy/shared";
 
-export const DEFAULT_INBOX_DIR = resolve(homedir(), ".lyy", "inbox");
+export const DEFAULT_INBOX_DIR = resolve(
+  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
+  "inbox",
+);
 
 export interface PaneInboxEntry {
   message: Message;

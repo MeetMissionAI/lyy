@@ -4,6 +4,7 @@ import { authPlugin } from "./plugins/auth.js";
 import { inboxRoutes } from "./routes/inbox.js";
 import { messagesRoute } from "./routes/messages.js";
 import { pairRoute } from "./routes/pair.js";
+import { peersRoute } from "./routes/peers.js";
 
 /** Wire-format payload pushed to recipients on `message:new`. */
 export interface MessageEnvelope {
@@ -41,6 +42,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   await pairRoute(app, deps);
   await messagesRoute(app, deps);
   await inboxRoutes(app, deps);
+  await peersRoute(app, deps);
 
   return app;
 }

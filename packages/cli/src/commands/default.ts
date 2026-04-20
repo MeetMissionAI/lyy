@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   openSync,
   unlinkSync,
@@ -8,24 +9,34 @@ import {
 } from "node:fs";
 import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve as resolvePath } from "node:path";
+import { basename, join, resolve as resolvePath } from "node:path";
 import { DEFAULT_MCP_SOCK } from "@lyy/daemon";
 import { which } from "../util/which.js";
 
-const SESSION_NAME = "lyy";
+/**
+ * Session/tab name derived from LYY_HOME basename so multiple profiles
+ * (e.g. ~/.lyy, ~/.lyy/profiles/alice) get distinct zellij sessions.
+ * Strip leading dot so default `~/.lyy` → `lyy`, not `.lyy`.
+ */
+function sessionName(): string {
+  const home = process.env.LYY_HOME ?? resolvePath(homedir(), ".lyy");
+  return basename(home).replace(/^\./, "") || "lyy";
+}
 
-const ZELLIJ_LAYOUT = `layout {
+function zellijLayout(name: string): string {
+  return `layout {
   default_tab_template {
     pane size=1 borderless=true {
       plugin location="zellij:tab-bar"
     }
     children
   }
-  tab name="lyy" {
+  tab name="${name}" {
     pane command="claude"
   }
 }
 `;
+}
 
 const ZELLIJ_CONFIG = `session_serialization false
 `;
@@ -49,24 +60,25 @@ export async function runDefault(): Promise<void> {
     return passthroughTo("claude", []);
   }
 
-  spawnSync(zellij, ["delete-session", SESSION_NAME, "--force"], {
+  const session = sessionName();
+  spawnSync(zellij, ["delete-session", session, "--force"], {
     stdio: "ignore",
   });
 
   const dir = mkdtempSync(join(tmpdir(), "lyy-layout-"));
-  writeFileSync(join(dir, "main.kdl"), ZELLIJ_LAYOUT);
+  writeFileSync(join(dir, "main.kdl"), zellijLayout(session));
   writeFileSync(join(dir, "config.kdl"), ZELLIJ_CONFIG);
 
   await passthroughTo(zellij, [
     "--config-dir",
     dir,
     "--session",
-    SESSION_NAME,
+    session,
     "--new-session-with-layout",
     join(dir, "main.kdl"),
   ]);
 
-  spawnSync(zellij, ["delete-session", SESSION_NAME, "--force"], {
+  spawnSync(zellij, ["delete-session", session, "--force"], {
     stdio: "ignore",
   });
 }
@@ -102,11 +114,20 @@ async function ensureDaemonRunning(): Promise<void> {
     return;
   }
 
-  const logPath = resolvePath(homedir(), ".lyy", "daemon.log");
+  const lyyHome = process.env.LYY_HOME ?? resolvePath(homedir(), ".lyy");
+  if (!existsSync(lyyHome)) {
+    try {
+      mkdirSync(lyyHome, { recursive: true });
+    } catch {
+      // ignore — openSync below will surface real error
+    }
+  }
+  const logPath = resolvePath(lyyHome, "daemon.log");
   const logFd = openSync(logPath, "a");
   const child = spawn(daemonBin, [], {
     detached: true,
     stdio: ["ignore", logFd, logFd],
+    env: process.env,
   });
   child.unref();
   console.log(`[lyy] started daemon (pid ${child.pid}, log: ${logPath})`);

@@ -12,8 +12,7 @@ const IdentitySchema = z.object({
 export type Identity = z.infer<typeof IdentitySchema>;
 
 export const DEFAULT_IDENTITY_PATH = resolve(
-  homedir(),
-  ".lyy",
+  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
   "identity.json",
 );
 

@@ -26,7 +26,10 @@ export const StateSchema = z.object({
 export type State = z.infer<typeof StateSchema>;
 export type ThreadSummary = z.infer<typeof ThreadSummarySchema>;
 
-export const DEFAULT_STATE_PATH = resolve(homedir(), ".lyy", "state.json");
+export const DEFAULT_STATE_PATH = resolve(
+  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
+  "state.json",
+);
 
 const EMPTY_STATE: State = { unreadCount: 0, threads: [], lastSeenSeq: {} };
 

@@ -12,7 +12,10 @@ import type { PaneRegistry } from "./pane-registry.js";
 import type { RelayHttp } from "./relay-http.js";
 import type { StateStore } from "./state.js";
 
-export const DEFAULT_MCP_SOCK = resolve(homedir(), ".lyy", "mcp.sock");
+export const DEFAULT_MCP_SOCK = resolve(
+  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
+  "mcp.sock",
+);
 
 export interface McpIpcServerDeps {
   relayHttp: RelayHttp;
@@ -181,6 +184,9 @@ export class McpIpcServer {
       case "list_threads": {
         const { includeArchived } = params as { includeArchived?: boolean };
         return this.deps.relayHttp.listThreads(includeArchived);
+      }
+      case "list_peers": {
+        return this.deps.relayHttp.listPeers();
       }
       case "search": {
         const { q, limit } = params as { q: string; limit?: number };
