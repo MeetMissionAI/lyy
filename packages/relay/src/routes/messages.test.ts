@@ -80,6 +80,19 @@ describe.skipIf(skip)("POST /messages", () => {
       expect(envelope.message.body).toBe("hi bob");
       expect(typeof envelope.threadShortId).toBe("number");
       expect(recipients).toEqual([b.id]);
+
+      expect(envelope.thread).toEqual({
+        id: expect.any(String),
+        shortId: expect.any(Number),
+        title: null,
+        participants: expect.arrayContaining([a.id, b.id]),
+      });
+      expect(
+        (envelope.peers ?? []).map((p: { id: string }) => p.id).sort(),
+      ).toEqual([a.id, b.id].sort());
+      expect(
+        (envelope.peers ?? []).find((p: { id: string }) => p.id === a.id),
+      ).toMatchObject({ name: a.name });
     } finally {
       await app.close();
     }
