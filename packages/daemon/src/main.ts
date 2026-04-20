@@ -45,7 +45,9 @@ export async function startDaemon(): Promise<DaemonHandles> {
   const mcp = new McpIpcServer({ relayHttp, state, paneRegistry, paneInbox });
   await mcp.start();
 
-  relayClient.on("connected", () => console.log("[lyy-daemon] relay connected"));
+  relayClient.on("connected", () =>
+    console.log("[lyy-daemon] relay connected"),
+  );
   relayClient.on("disconnected", (reason) =>
     console.log(`[lyy-daemon] relay disconnected: ${reason}`),
   );
@@ -53,7 +55,10 @@ export async function startDaemon(): Promise<DaemonHandles> {
     console.log(`[lyy-daemon] relay connect_error: ${(err as Error).message}`),
   );
   relayClient.on("message:new", (env) => {
-    const e = env as { message: { seq: number; fromPeer: string }; threadShortId: number };
+    const e = env as {
+      message: { seq: number; fromPeer: string };
+      threadShortId: number;
+    };
     console.log(
       `[lyy-daemon] message:new thread=#${e.threadShortId} seq=${e.message.seq} from=${e.message.fromPeer}`,
     );
