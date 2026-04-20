@@ -4,6 +4,7 @@ import type { PaneRegistry } from "./pane-registry.js";
 import type { RelayClient } from "./relay-client.js";
 import type { StateStore, ThreadSummary } from "./state.js";
 
+// NOTE: keep in sync with packages/relay/src/server.ts EnvelopePeer/Thread/MessageEnvelope
 export interface EnvelopePeer {
   id: string;
   name: string;

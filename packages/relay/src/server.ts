@@ -6,6 +6,7 @@ import { messagesRoute } from "./routes/messages.js";
 import { pairRoute } from "./routes/pair.js";
 import { peersRoute } from "./routes/peers.js";
 
+// NOTE: keep in sync with packages/daemon/src/router.ts EnvelopePeer/Thread/MessageEnvelope
 export interface EnvelopePeer {
   id: string;
   name: string;
