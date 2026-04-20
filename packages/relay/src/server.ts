@@ -6,10 +6,25 @@ import { messagesRoute } from "./routes/messages.js";
 import { pairRoute } from "./routes/pair.js";
 import { peersRoute } from "./routes/peers.js";
 
+export interface EnvelopePeer {
+  id: string;
+  name: string;
+  displayName?: string;
+}
+
+export interface EnvelopeThread {
+  id: string;
+  shortId: number;
+  title: string | null;
+  participants: string[];
+}
+
 /** Wire-format payload pushed to recipients on `message:new`. */
 export interface MessageEnvelope {
   message: Message;
-  threadShortId: number;
+  threadShortId: number; // backward compat — keep
+  thread?: EnvelopeThread;
+  peers?: EnvelopePeer[];
 }
 
 /** Notifier called after a message is persisted; Socket.IO wiring uses it. */

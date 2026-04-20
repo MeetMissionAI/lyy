@@ -4,9 +4,24 @@ import type { PaneRegistry } from "./pane-registry.js";
 import type { RelayClient } from "./relay-client.js";
 import type { StateStore, ThreadSummary } from "./state.js";
 
+export interface EnvelopePeer {
+  id: string;
+  name: string;
+  displayName?: string;
+}
+
+export interface EnvelopeThread {
+  id: string;
+  shortId: number;
+  title: string | null;
+  participants: string[];
+}
+
 export interface MessageEnvelope {
   message: Message;
-  threadShortId: number;
+  threadShortId: number; // backward compat — keep
+  thread?: EnvelopeThread;
+  peers?: EnvelopePeer[];
 }
 
 export interface RouterDeps {
