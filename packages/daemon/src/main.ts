@@ -47,11 +47,14 @@ export function inspectPidLock(
 ): number | null {
   let raw: string;
   try {
-    raw = deps.readFileSync(pidPath, "utf8").trim();
+    raw = deps.readFileSync(pidPath, "utf8");
   } catch {
     return null; // No pid file yet.
   }
-  const existing = Number.parseInt(raw, 10);
+  // Multi-line format: first line is the daemon pid, optional second line is
+  // its parent (tsx shim wrapper). We only conflict-check the first line.
+  const firstLine = raw.split("\n")[0]?.trim() ?? "";
+  const existing = Number.parseInt(firstLine, 10);
   if (!Number.isFinite(existing) || existing <= 0) return null;
   if (existing === myPid) return null;
   return deps.isAlive(existing) ? existing : null;
@@ -70,7 +73,15 @@ function acquirePidLock(pidPath: string): void {
     );
     process.exit(2);
   }
-  writeFileSync(pidPath, String(process.pid), { flag: "w" });
+  // Record both our pid and the parent pid. When the daemon is launched via
+  // the dev tsx shim (or any wrapper), `ps` shows both processes with
+  // lyy-daemon-looking command lines — doctor's rogue scan needs both listed
+  // as legitimate to avoid false positives.
+  const lines = [String(process.pid)];
+  if (process.ppid && process.ppid > 1 && process.ppid !== process.pid) {
+    lines.push(String(process.ppid));
+  }
+  writeFileSync(pidPath, `${lines.join("\n")}\n`, { flag: "w" });
 }
 
 /**

@@ -62,4 +62,15 @@ describe("inspectPidLock", () => {
       ),
     ).toBe(9999);
   });
+
+  it("uses only the first line of a multi-line pid file", () => {
+    // acquirePidLock writes `<pid>\n<ppid>\n`; inspect must ignore ppid.
+    expect(
+      inspectPidLock(
+        "/tmp/pid",
+        1234,
+        deps({ pidFile: "9999\n8888\n", alivePids: [9999] }),
+      ),
+    ).toBe(9999);
+  });
 });

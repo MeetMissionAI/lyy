@@ -91,8 +91,14 @@ function checkRogueDaemons(fix: boolean): Check {
       const pidFile = resolve(profilesRoot, entry, "daemon.pid");
       if (!existsSync(pidFile)) continue;
       try {
-        const pid = Number.parseInt(readFileSync(pidFile, "utf8").trim(), 10);
-        if (Number.isFinite(pid) && pid > 0) legitPids.add(pid);
+        // Multi-line file: daemon pid on line 1, parent (tsx shim) pid on
+        // line 2. Both appear in ps output with lyy-daemon command lines,
+        // so both must be treated as legit to avoid false-positive rogues.
+        const raw = readFileSync(pidFile, "utf8");
+        for (const line of raw.split("\n")) {
+          const pid = Number.parseInt(line.trim(), 10);
+          if (Number.isFinite(pid) && pid > 0) legitPids.add(pid);
+        }
       } catch {
         // ignore
       }
