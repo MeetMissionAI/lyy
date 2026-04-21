@@ -1,10 +1,10 @@
-import { Text, render } from "ink";
+import { render } from "ink";
 import React from "react";
-
-function App() {
-  return <Text>lyy-tui v0 — Ink wired.</Text>;
-}
+import { App } from "./app.js";
+import { fetchState, makeIpc } from "./ipc.js";
 
 export async function main(): Promise<void> {
-  render(<App />);
+  const ipc = makeIpc();
+  const state = await fetchState(ipc);
+  render(<App initialState={state} />);
 }
