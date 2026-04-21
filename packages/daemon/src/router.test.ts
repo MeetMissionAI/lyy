@@ -109,7 +109,7 @@ describe("MessageRouter", () => {
     expect(await inbox.drain(SHORT_ID)).toEqual([]);
   });
 
-  it("from other, pane closed: bumps unread, no inbox write", async () => {
+  it("from other, pane closed: bumps unread AND writes to paneInbox", async () => {
     await seedThreadSummary();
     await emit({
       message: newMessage({ fromPeer: OTHER_PEER, seq: 7, body: "ping" }),
@@ -121,7 +121,9 @@ describe("MessageRouter", () => {
     expect(s.threads[0].unread).toBe(1);
     expect(s.threads[0].lastBody).toBe("ping");
     expect(s.unreadCount).toBe(1);
-    expect(await inbox.drain(SHORT_ID)).toEqual([]);
+    const entries = await inbox.drain(SHORT_ID);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].message.body).toBe("ping");
   });
 
   it("from other, pane open: appends to inbox, no unread bump", async () => {

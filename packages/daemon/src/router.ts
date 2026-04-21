@@ -71,7 +71,9 @@ export class MessageRouter {
     const paneOpen =
       !isFromSelf && this.deps.paneRegistry.findPane(threadShortId) !== null;
 
-    if (paneOpen) {
+    // Always accumulate in paneInbox unless we sent this ourselves. SessionStart
+    // hook drains the file on /pickup so offline-accumulated messages surface.
+    if (!isFromSelf) {
       await this.deps.paneInbox.append(threadShortId, message);
     }
 
