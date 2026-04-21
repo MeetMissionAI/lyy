@@ -89,7 +89,7 @@ export function ThreadView({
             value={draft}
             onChange={setDraft}
             onSubmit={handleSubmit}
-            placeholder="type message, Shift+Tab newline, @Claude for help"
+            placeholder={String.raw`type message, Shift+Enter or \ + Enter newline, @Claude for help`}
             isActive={!suggestion}
           />
         </Box>

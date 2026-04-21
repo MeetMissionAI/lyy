@@ -35,13 +35,28 @@ export function TextArea({
 
   useInput(
     (input, key) => {
-      // Shift+Tab: newline (Claude Code convention alternative)
-      if (key.tab && key.shift) {
-        insertText("\n");
-        return;
-      }
-
       if (key.return) {
+        // Primary newline path: Shift+Enter (works in terminals that propagate
+        // the shift modifier via CSI-u / kitty keyboard protocol).
+        if (key.shift) {
+          insertText("\n");
+          return;
+        }
+        // Fallback: trailing `\` + Enter. Most terminals don't distinguish
+        // Shift+Enter from plain Enter, so this gives a universal way to
+        // insert a newline — type `\`, then Enter. We strip the `\` and
+        // insert a newline in its place (atomic, single state update).
+        const curLine = lines[cursor.row] ?? "";
+        if (cursor.col > 0 && curLine[cursor.col - 1] === "\\") {
+          const head = lines.slice(0, cursor.row);
+          const tail = lines.slice(cursor.row + 1);
+          const before = curLine.slice(0, cursor.col - 1); // drop \
+          const after = curLine.slice(cursor.col);
+          const next = [...head, before, after, ...tail];
+          onChange(next.join("\n"));
+          setCursor({ row: cursor.row + 1, col: 0 });
+          return;
+        }
         void onSubmit(value);
         return;
       }
