@@ -1,14 +1,30 @@
 import type { Message } from "@lyy/shared";
 import { Box, Text } from "ink";
-import React from "react";
+import TextInput from "ink-text-input";
+import React, { useState } from "react";
 
 export interface ThreadViewProps {
   thread: { threadId: string; shortId: number; peerName: string };
   messages: Message[];
   selfPeerId: string;
+  onSend: (body: string) => Promise<void> | void;
 }
 
-export function ThreadView({ thread, messages, selfPeerId }: ThreadViewProps) {
+export function ThreadView({
+  thread,
+  messages,
+  selfPeerId,
+  onSend,
+}: ThreadViewProps) {
+  const [draft, setDraft] = useState("");
+
+  const handleSubmit = async (value: string) => {
+    const body = value.trim();
+    if (!body) return;
+    setDraft("");
+    await onSend(body);
+  };
+
   return (
     <Box flexDirection="column">
       <Text bold>
@@ -23,6 +39,10 @@ export function ThreadView({ thread, messages, selfPeerId }: ThreadViewProps) {
           </Text>
         );
       })}
+      <Box marginTop={1}>
+        <Text>&gt; </Text>
+        <TextInput value={draft} onChange={setDraft} onSubmit={handleSubmit} />
+      </Box>
     </Box>
   );
 }

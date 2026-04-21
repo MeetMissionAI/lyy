@@ -12,6 +12,7 @@ export interface AppProps {
   initialState: State;
   fetchState?: () => Promise<State>;
   fetchMessages?: (threadId: string) => Promise<Message[]>;
+  onSend?: (threadId: string, body: string) => Promise<void>;
   subscribeEvents?: (onEvent: EventHandler) => () => void;
   selfPeerId?: string;
 }
@@ -20,6 +21,7 @@ export function App({
   initialState,
   fetchState = async () => initialState,
   fetchMessages = async () => [],
+  onSend = async () => {},
   subscribeEvents = () => () => {},
   selfPeerId = "",
 }: AppProps) {
@@ -77,6 +79,10 @@ export function App({
         }}
         messages={messages}
         selfPeerId={selfPeerId}
+        onSend={async (body) => {
+          await onSend(view.threadId, body);
+          setVersion((v) => v + 1);
+        }}
       />
     );
   }

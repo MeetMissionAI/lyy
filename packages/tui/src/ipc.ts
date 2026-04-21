@@ -21,6 +21,14 @@ export async function fetchThread(
   return messages;
 }
 
+export async function sendMessage(
+  ipc: McpIpcClient,
+  threadId: string,
+  body: string,
+): Promise<void> {
+  await ipc.call("send_message", { threadId, body });
+}
+
 export type EventHandler = (event: string, payload: unknown) => void;
 
 /**
