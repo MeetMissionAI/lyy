@@ -81,6 +81,13 @@ afterEach(async () => {
 async function emit(env: {
   message: Message;
   threadShortId: number;
+  thread?: {
+    id: string;
+    shortId: number;
+    title: string | null;
+    participants: string[];
+  };
+  peers?: { id: string; name: string; displayName?: string }[];
 }): Promise<void> {
   relay.emit("message:new", env);
   // give async update time to settle
@@ -172,14 +179,46 @@ describe("MessageRouter", () => {
     expect(s.unreadCount).toBe(0); // but excluded from the global badge
   });
 
-  it("unknown thread: state.lastSeenSeq still updates, no thread summary added", async () => {
+  it("unknown thread with envelope.thread + envelope.peers: upserts summary", async () => {
+    await state.write({ unreadCount: 0, threads: [], lastSeenSeq: {} });
+    await emit({
+      message: newMessage({ fromPeer: OTHER_PEER, seq: 1, body: "hello new" }),
+      threadShortId: SHORT_ID,
+      thread: {
+        id: THREAD_ID,
+        shortId: SHORT_ID,
+        title: null,
+        participants: [SELF_PEER, OTHER_PEER],
+      },
+      peers: [
+        { id: SELF_PEER, name: "leo" },
+        { id: OTHER_PEER, name: "bob" },
+      ],
+    });
+    const s = await state.read();
+    expect(s.threads).toHaveLength(1);
+    expect(s.threads[0]).toMatchObject({
+      threadId: THREAD_ID,
+      shortId: SHORT_ID,
+      peerName: "bob",
+      unread: 1,
+      lastBody: "hello new",
+      lastMessageAt: "2026-04-19T10:00:00.000Z",
+      archived: false,
+      paneOpen: false,
+    });
+    expect(s.lastSeenSeq[THREAD_ID]).toBe(1);
+    expect(s.unreadCount).toBe(1);
+  });
+
+  it("unknown thread without envelope metadata (legacy relay): leaves threads empty, still bumps lastSeenSeq", async () => {
     await state.write({ unreadCount: 0, threads: [], lastSeenSeq: {} });
     await emit({
       message: newMessage({ fromPeer: OTHER_PEER, seq: 1 }),
       threadShortId: SHORT_ID,
     });
     const s = await state.read();
-    expect(s.lastSeenSeq[THREAD_ID]).toBe(1);
     expect(s.threads).toEqual([]);
+    expect(s.lastSeenSeq[THREAD_ID]).toBe(1);
   });
 });
