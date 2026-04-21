@@ -93,6 +93,27 @@ describe("ThreadView", () => {
     expect(onSend).toHaveBeenCalledWith("hi");
   });
 
+  it("@Claude prefix routes to onInjectClaude, not onSend", async () => {
+    const onSend = vi.fn(async () => {});
+    const onInjectClaude = vi.fn(async () => {});
+    const { stdin } = render(
+      <ThreadView
+        thread={{ threadId: "t1", shortId: 7, peerName: "alice" }}
+        messages={[]}
+        selfPeerId="peer-self"
+        onSend={onSend}
+        onInjectClaude={onInjectClaude}
+      />,
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    stdin.write("@Claude help");
+    await new Promise((r) => setTimeout(r, 30));
+    stdin.write("\r");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(onInjectClaude).toHaveBeenCalledWith("help");
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it("empty input does not trigger onSend", async () => {
     const onSend = vi.fn(async () => {});
     const { stdin } = render(

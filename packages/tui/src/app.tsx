@@ -2,6 +2,7 @@ import type { State } from "@lyy/daemon";
 import type { Message } from "@lyy/shared";
 import { Box, Text, useInput } from "ink";
 import React, { useEffect, useState } from "react";
+import { buildClaudePrompt, injectIntoClaudePane } from "./inject-claude.js";
 import type { EventHandler } from "./ipc.js";
 import { ThreadView } from "./thread-view.js";
 import { useBlink } from "./use-blink.js";
@@ -82,6 +83,16 @@ export function App({
         onSend={async (body) => {
           await onSend(view.threadId, body);
           setVersion((v) => v + 1);
+        }}
+        onInjectClaude={async (question) => {
+          const prompt = buildClaudePrompt({
+            threadShortId: t.shortId,
+            peerName: t.peerName,
+            history: messages,
+            selfPeerId,
+            question,
+          });
+          await injectIntoClaudePane(prompt);
         }}
       />
     );

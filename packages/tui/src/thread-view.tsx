@@ -8,6 +8,7 @@ export interface ThreadViewProps {
   messages: Message[];
   selfPeerId: string;
   onSend: (body: string) => Promise<void> | void;
+  onInjectClaude?: (question: string) => Promise<void> | void;
 }
 
 export function ThreadView({
@@ -15,6 +16,7 @@ export function ThreadView({
   messages,
   selfPeerId,
   onSend,
+  onInjectClaude,
 }: ThreadViewProps) {
   const [draft, setDraft] = useState("");
 
@@ -22,6 +24,11 @@ export function ThreadView({
     const body = value.trim();
     if (!body) return;
     setDraft("");
+    if (body.startsWith("@Claude ") && onInjectClaude) {
+      const question = body.slice("@Claude ".length);
+      await onInjectClaude(question);
+      return;
+    }
     await onSend(body);
   };
 
