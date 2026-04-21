@@ -3,8 +3,9 @@ import type { LyyTool } from "./index.js";
 
 /**
  * Spawn a new pane (zellij if available, else a new Terminal window via
- * AppleScript on macOS) with `claude --session-id=lyy-thread-N` and
- * required env vars so the new MCP detects thread mode.
+ * AppleScript on macOS) with `claude --session-id=<threadId>` and required
+ * env vars so the new MCP detects thread mode. threadId is already a UUID,
+ * which Claude CLI requires for --session-id.
  */
 export const spawnThreadTool: LyyTool = {
   name: "spawn_thread",
@@ -25,7 +26,8 @@ export const spawnThreadTool: LyyTool = {
   async execute(args) {
     const threadId = String(args.thread_id);
     const shortId = Number(args.thread_short_id);
-    const sessionId = `lyy-thread-${shortId}`;
+    // Claude CLI requires --session-id to be a UUID; threadId already is one.
+    const sessionId = threadId;
     const env = {
       LYY_MODE: "thread",
       LYY_THREAD_ID: threadId,

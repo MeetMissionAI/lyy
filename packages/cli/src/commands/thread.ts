@@ -23,7 +23,8 @@ export async function runThread(shortId: number): Promise<void> {
   if (!target)
     throw new Error(`no thread with shortId #${shortId} in local inbox`);
 
-  const sessionId = `lyy-thread-${shortId}`;
+  // Claude CLI requires --session-id to be a UUID; threadId already is one.
+  const sessionId = target.threadId;
   const env = {
     LYY_MODE: "thread",
     LYY_THREAD_ID: target.threadId,
