@@ -53,7 +53,9 @@ export function TextArea({
       const curLines = curValue.length === 0 ? [""] : curValue.split("\n");
 
       if (key.return) {
-        if (key.shift) {
+        // Shift+Enter OR Meta+Enter (Option+Enter on macOS) inserts a newline
+        // where the terminal forwards modifier info (CSI-u / kitty protocol).
+        if (key.shift || key.meta) {
           insertText("\n", curLines, cur);
           return;
         }
