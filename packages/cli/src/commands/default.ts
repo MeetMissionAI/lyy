@@ -10,7 +10,7 @@ import {
 import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { basename, join, resolve as resolvePath } from "node:path";
-import { DEFAULT_MCP_SOCK } from "@lyy/daemon";
+import { DEFAULT_MCP_SOCK, getLyyHome, lyyPath } from "@lyy/daemon";
 import { which } from "../util/which.js";
 
 /**
@@ -20,8 +20,7 @@ import { which } from "../util/which.js";
  * → `alice-12345`. Strip leading dot so default `~/.lyy` → `lyy-<pid>`.
  */
 function sessionName(): string {
-  const home = process.env.LYY_HOME ?? resolvePath(homedir(), ".lyy");
-  const base = basename(home).replace(/^\./, "") || "lyy";
+  const base = basename(getLyyHome()).replace(/^\./, "") || "lyy";
   return `${base}-${process.pid}`;
 }
 
@@ -113,7 +112,7 @@ async function ensureDaemonRunning(): Promise<void> {
     return;
   }
 
-  const lyyHome = process.env.LYY_HOME ?? resolvePath(homedir(), ".lyy");
+  const lyyHome = getLyyHome();
   if (!existsSync(lyyHome)) {
     try {
       mkdirSync(lyyHome, { recursive: true });
@@ -121,7 +120,7 @@ async function ensureDaemonRunning(): Promise<void> {
       // ignore — openSync below will surface real error
     }
   }
-  const logPath = resolvePath(lyyHome, "daemon.log");
+  const logPath = lyyPath("daemon.log");
   const logFd = openSync(logPath, "a");
   const child = spawn(daemonBin, [], {
     detached: true,

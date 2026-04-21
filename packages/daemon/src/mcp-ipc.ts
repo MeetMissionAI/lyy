@@ -5,17 +5,14 @@ import {
   createConnection,
   createServer,
 } from "node:net";
-import { homedir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 import type { PaneInbox } from "./pane-inbox.js";
 import type { PaneRegistry } from "./pane-registry.js";
+import { lyyPath } from "./paths.js";
 import type { RelayHttp } from "./relay-http.js";
 import type { StateStore } from "./state.js";
 
-export const DEFAULT_MCP_SOCK = resolve(
-  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
-  "mcp.sock",
-);
+export const DEFAULT_MCP_SOCK = lyyPath("mcp.sock");
 
 export interface McpIpcServerDeps {
   relayHttp: RelayHttp;

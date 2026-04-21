@@ -26,7 +26,6 @@ export function buildCli(): Command {
     .option("--name <name>", "Your peer @name (e.g. leo)")
     .option("--email <email>", "Your team email")
     .option("--relay-url <url>", "Relay base URL (env: LYY_RELAY_URL)")
-    .option("--no-launch-agent", "Skip macOS LaunchAgent install")
     .action(async (opts: InitOptions) => runInit(opts));
 
   program

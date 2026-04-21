@@ -1,4 +1,4 @@
-import type { Db, Message } from "@lyy/shared";
+import type { Db, MessageEnvelope } from "@lyy/shared";
 import Fastify, { type FastifyInstance } from "fastify";
 import { authPlugin } from "./plugins/auth.js";
 import { inboxRoutes } from "./routes/inbox.js";
@@ -6,27 +6,7 @@ import { messagesRoute } from "./routes/messages.js";
 import { pairRoute } from "./routes/pair.js";
 import { peersRoute } from "./routes/peers.js";
 
-// NOTE: keep in sync with packages/daemon/src/router.ts EnvelopePeer/Thread/MessageEnvelope
-export interface EnvelopePeer {
-  id: string;
-  name: string;
-  displayName?: string;
-}
-
-export interface EnvelopeThread {
-  id: string;
-  shortId: number;
-  title: string | null;
-  participants: string[];
-}
-
-/** Wire-format payload pushed to recipients on `message:new`. */
-export interface MessageEnvelope {
-  message: Message;
-  threadShortId: number; // backward compat — keep
-  thread?: EnvelopeThread;
-  peers?: EnvelopePeer[];
-}
+export type { MessageEnvelope };
 
 /** Notifier called after a message is persisted; Socket.IO wiring uses it. */
 export type MessageBroadcaster = (

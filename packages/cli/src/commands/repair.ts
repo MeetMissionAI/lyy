@@ -1,16 +1,14 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
+import { lyyPath } from "@lyy/daemon";
 import {
   installSlashCommands,
   mergeClaudeSettings,
   registerMcpWithClaude,
 } from "./init.js";
 
-const IDENTITY_PATH = resolve(
-  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
-  "identity.json",
-);
+const IDENTITY_PATH = lyyPath("identity.json");
 const CLAUDE_SETTINGS_PATH = resolve(homedir(), ".claude", "settings.json");
 
 /**

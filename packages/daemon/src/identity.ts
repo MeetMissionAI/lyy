@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { resolve } from "node:path";
 import { z } from "zod";
+import { lyyPath } from "./paths.js";
 
 const IdentitySchema = z.object({
   peerId: z.uuid(),
@@ -11,10 +10,7 @@ const IdentitySchema = z.object({
 
 export type Identity = z.infer<typeof IdentitySchema>;
 
-export const DEFAULT_IDENTITY_PATH = resolve(
-  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
-  "identity.json",
-);
+export const DEFAULT_IDENTITY_PATH = lyyPath("identity.json");
 
 export function loadIdentity(path: string = DEFAULT_IDENTITY_PATH): Identity {
   const raw = readFileSync(path, "utf8");

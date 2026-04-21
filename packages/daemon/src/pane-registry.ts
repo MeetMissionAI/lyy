@@ -5,13 +5,10 @@ import {
   createConnection,
   createServer,
 } from "node:net";
-import { homedir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
+import { lyyPath } from "./paths.js";
 
-export const DEFAULT_PANE_REGISTRY_SOCK = resolve(
-  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
-  "pane-registry.sock",
-);
+export const DEFAULT_PANE_REGISTRY_SOCK = lyyPath("pane-registry.sock");
 
 interface RegisterOp {
   op: "register";

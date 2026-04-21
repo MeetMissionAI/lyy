@@ -6,7 +6,6 @@ import {
   markRead,
   searchMessages,
   unarchiveThread,
-  unreadCountForPeer,
 } from "@lyy/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -65,10 +64,9 @@ export async function inboxRoutes(
   app.get("/threads", async (req, reply) => {
     const includeArchived =
       (req.query as { includeArchived?: string })?.includeArchived === "true";
-    const [threads, unreadCount] = await Promise.all([
-      listThreadsForPeer(deps.db, req.peerId, { includeArchived }),
-      unreadCountForPeer(deps.db, req.peerId),
-    ]);
+    const threads = await listThreadsForPeer(deps.db, req.peerId, {
+      includeArchived,
+    });
 
     const enriched = threads.map((t) => ({
       threadId: t.id,
@@ -79,6 +77,10 @@ export async function inboxRoutes(
       archived: t.archived,
       unread: t.unread,
     }));
+    const unreadCount = enriched.reduce(
+      (sum, t) => sum + (t.archived ? 0 : t.unread),
+      0,
+    );
 
     return reply.send({ unreadCount, threads: enriched });
   });

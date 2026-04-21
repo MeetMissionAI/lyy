@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { readFile, rename, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 import { z } from "zod";
+import { lyyPath } from "./paths.js";
 
 const ThreadSummarySchema = z.object({
   threadId: z.uuid(),
@@ -26,10 +26,7 @@ export const StateSchema = z.object({
 export type State = z.infer<typeof StateSchema>;
 export type ThreadSummary = z.infer<typeof ThreadSummarySchema>;
 
-export const DEFAULT_STATE_PATH = resolve(
-  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
-  "state.json",
-);
+export const DEFAULT_STATE_PATH = lyyPath("state.json");
 
 const EMPTY_STATE: State = { unreadCount: 0, threads: [], lastSeenSeq: {} };
 

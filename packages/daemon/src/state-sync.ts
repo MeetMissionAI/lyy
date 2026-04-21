@@ -23,12 +23,22 @@ export async function syncStateFromRelay(deps: SyncDeps): Promise<void> {
 
   const peerById = new Map(peersRes.peers.map((p) => [p.id, p]));
 
-  // Backfill messages for threads with unread > 0.
+  // Backfill messages for threads with unread > 0. Parallel fetch (N+1 RTTs
+  // collapse to 1 on reconnect); paneInbox appends stay sequential per thread
+  // so jsonl order matches relay seq order.
+  const unreadThreads = threadsRes.threads.filter((t) => t.unread > 0);
+  const fetched = await Promise.all(
+    unreadThreads.map(async (t) => {
+      const sinceSeq = prevState.lastSeenSeq[t.threadId] ?? 0;
+      const { messages } = await deps.relayHttp.readThread(
+        t.threadId,
+        sinceSeq,
+      );
+      return { t, sinceSeq, messages };
+    }),
+  );
   const backfillSeq: Record<string, number> = {};
-  for (const t of threadsRes.threads) {
-    if (t.unread <= 0) continue;
-    const sinceSeq = prevState.lastSeenSeq[t.threadId] ?? 0;
-    const { messages } = await deps.relayHttp.readThread(t.threadId, sinceSeq);
+  for (const { t, sinceSeq, messages } of fetched) {
     let maxSeq = sinceSeq;
     for (const m of messages) {
       maxSeq = Math.max(maxSeq, m.seq);

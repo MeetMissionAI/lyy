@@ -12,7 +12,7 @@ import { dirname, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-import type { Identity } from "@lyy/daemon";
+import { type Identity, lyyPath } from "@lyy/daemon";
 import { which } from "../util/which.js";
 
 export interface InitOptions {
@@ -20,7 +20,6 @@ export interface InitOptions {
   name?: string;
   email?: string;
   relayUrl?: string;
-  launchAgent?: boolean;
 }
 
 interface PairResponse {
@@ -28,10 +27,7 @@ interface PairResponse {
   jwt: string;
 }
 
-const IDENTITY_PATH = resolve(
-  process.env.LYY_HOME ?? resolve(homedir(), ".lyy"),
-  "identity.json",
-);
+const IDENTITY_PATH = lyyPath("identity.json");
 const CLAUDE_SETTINGS_PATH = resolve(homedir(), ".claude", "settings.json");
 
 export async function runInit(opts: InitOptions): Promise<void> {
@@ -73,8 +69,6 @@ export async function runInit(opts: InitOptions): Promise<void> {
     console.log(
       `[init] installed ${installed} slash command(s) into ~/.claude/commands/`,
     );
-
-    // LaunchAgent removed — daemon auto-starts when user runs `lyy`.
 
     console.log("");
     console.log(`✓ paired as @${name} (peerId=${peerId})`);

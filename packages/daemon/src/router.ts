@@ -1,29 +1,10 @@
-import type { Message } from "@lyy/shared";
+import type { MessageEnvelope } from "@lyy/shared";
 import type { PaneInbox } from "./pane-inbox.js";
 import type { PaneRegistry } from "./pane-registry.js";
 import type { RelayClient } from "./relay-client.js";
 import type { StateStore, ThreadSummary } from "./state.js";
 
-// NOTE: keep in sync with packages/relay/src/server.ts EnvelopePeer/Thread/MessageEnvelope
-export interface EnvelopePeer {
-  id: string;
-  name: string;
-  displayName?: string;
-}
-
-export interface EnvelopeThread {
-  id: string;
-  shortId: number;
-  title: string | null;
-  participants: string[];
-}
-
-export interface MessageEnvelope {
-  message: Message;
-  threadShortId: number; // backward compat — keep
-  thread?: EnvelopeThread;
-  peers?: EnvelopePeer[];
-}
+export type { MessageEnvelope };
 
 export interface RouterDeps {
   relay: RelayClient;

@@ -1,8 +1,11 @@
 export type {
   Attachment,
+  EnvelopePeer,
+  EnvelopeThread,
   InboxSummary,
   InboxThreadSummary,
   Message,
+  MessageEnvelope,
   Peer,
   Thread,
 } from "./types.js";

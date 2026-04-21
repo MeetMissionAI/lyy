@@ -47,3 +47,24 @@ export interface InboxSummary {
   unreadCount: number;
   threads: InboxThreadSummary[];
 }
+
+export interface EnvelopePeer {
+  id: string;
+  name: string;
+  displayName?: string;
+}
+
+export interface EnvelopeThread {
+  id: string;
+  shortId: number;
+  title: string | null;
+  participants: string[];
+}
+
+/** Wire-format payload pushed to recipients on `message:new` over socket.io. */
+export interface MessageEnvelope {
+  message: Message;
+  threadShortId: number;
+  thread?: EnvelopeThread;
+  peers?: EnvelopePeer[];
+}
