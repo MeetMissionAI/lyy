@@ -90,8 +90,10 @@ async function emit(env: {
   peers?: { id: string; name: string; displayName?: string }[];
 }): Promise<void> {
   relay.emit("message:new", env);
-  // give async update time to settle
-  await new Promise((r) => setTimeout(r, 10));
+  // give async update time to settle. 10ms was flaky on the GitHub runner
+  // (state.update reads+writes state.json which is async); 80ms is cheap
+  // enough for the whole file to still run in under a second.
+  await new Promise((r) => setTimeout(r, 80));
 }
 
 describe("MessageRouter", () => {
