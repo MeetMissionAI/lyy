@@ -87,12 +87,13 @@ export async function messagesRoute(
       if (deps.broadcaster) {
         // Enrich envelope with thread + peer metadata so receivers can upsert their
         // local state cache for unknown threads (avoid a separate /threads round-trip).
+        const broadcast = deps.broadcaster;
         const broadcastPromise = (async () => {
           const peers = await findPeersByIds(
             deps.db,
             result.thread.participants,
           );
-          return deps.broadcaster?.(
+          return broadcast(
             {
               message: result.message,
               threadShortId: result.thread.shortId,
