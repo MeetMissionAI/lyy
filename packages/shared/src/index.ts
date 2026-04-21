@@ -52,4 +52,6 @@ export {
   unarchiveThread,
 } from "./repo/archives.js";
 
+export { LYY_VERSION } from "./version.js";
+
 export const PACKAGE_NAME = "@lyy/shared";

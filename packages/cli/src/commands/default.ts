@@ -10,7 +10,13 @@ import {
 import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { basename, join, resolve as resolvePath } from "node:path";
-import { DEFAULT_MCP_SOCK, getLyyHome, lyyPath } from "@lyy/daemon";
+import {
+  DEFAULT_MCP_SOCK,
+  McpIpcClient,
+  getLyyHome,
+  lyyPath,
+} from "@lyy/daemon";
+import { LYY_VERSION } from "@lyy/shared";
 import { which } from "../util/which.js";
 
 /**
@@ -95,8 +101,40 @@ export async function runDefault(): Promise<void> {
  * a crashed daemon can leave a stale socket file that would otherwise
  * trick us into skipping respawn.
  */
+async function queryDaemonVersion(): Promise<{
+  version: string;
+  pid: number;
+} | null> {
+  try {
+    const client = new McpIpcClient();
+    return await client.call<{ version: string; pid: number }>("version");
+  } catch {
+    return null;
+  }
+}
+
 async function ensureDaemonRunning(): Promise<void> {
-  if (await pingDaemon()) return;
+  if (await pingDaemon()) {
+    const running = await queryDaemonVersion();
+    if (running && running.version === LYY_VERSION) return; // same version, reuse
+    if (running) {
+      console.log(
+        `[lyy] daemon v${running.version} running; expected v${LYY_VERSION}. Restarting…`,
+      );
+      try {
+        process.kill(running.pid, "SIGTERM");
+      } catch {
+        // already dead
+      }
+      // Wait up to 2s for socket to drop before respawn.
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (!(await pingDaemon())) break;
+        await sleep(100);
+      }
+    }
+    // Fall through to respawn path below.
+  }
 
   // Stale socket from a dead daemon? Remove before respawn.
   if (existsSync(DEFAULT_MCP_SOCK)) {

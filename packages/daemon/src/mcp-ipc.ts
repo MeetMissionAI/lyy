@@ -6,6 +6,7 @@ import {
   createServer,
 } from "node:net";
 import { dirname } from "node:path";
+import { LYY_VERSION } from "@lyy/shared";
 import type { PaneInbox } from "./pane-inbox.js";
 import type { PaneRegistry } from "./pane-registry.js";
 import { lyyPath } from "./paths.js";
@@ -139,6 +140,8 @@ export class McpIpcServer {
     socket: Socket,
   ): Promise<unknown> {
     switch (method) {
+      case "version":
+        return { version: LYY_VERSION, pid: process.pid };
       case "subscribe": {
         // Register the calling socket as an event listener. The socket is
         // kept open (subscribers don't get cleaned up on reply like normal

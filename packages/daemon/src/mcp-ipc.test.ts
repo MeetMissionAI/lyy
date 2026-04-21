@@ -99,6 +99,12 @@ describe("McpIpcServer", () => {
     expect(await inbox.drain(12)).toEqual([]);
   });
 
+  it("version returns { version, pid } of running daemon", async () => {
+    const res = await client.call<{ version: string; pid: number }>("version");
+    expect(res.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(res.pid).toBe(process.pid);
+  });
+
   it("ack_read proxies to relayHttp.markRead", async () => {
     const ids = ["550e8400-e29b-41d4-a716-446655440011"];
     await client.call("ack_read", { messageIds: ids });
