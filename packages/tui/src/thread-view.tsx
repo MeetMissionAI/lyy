@@ -23,13 +23,18 @@ export function ThreadView({
   const handleSubmit = async (value: string) => {
     const body = value.trim();
     if (!body) return;
-    setDraft("");
-    if (body.startsWith("@Claude ") && onInjectClaude) {
-      const question = body.slice("@Claude ".length);
-      await onInjectClaude(question);
-      return;
+    try {
+      if (body.startsWith("@Claude ") && onInjectClaude) {
+        const question = body.slice("@Claude ".length);
+        await onInjectClaude(question);
+      } else {
+        await onSend(body);
+      }
+      setDraft("");
+    } catch (err) {
+      // Keep draft so user can retry; surface error on stderr for debugging.
+      console.error("[lyy-tui] send/inject failed:", err);
     }
-    await onSend(body);
   };
 
   return (
