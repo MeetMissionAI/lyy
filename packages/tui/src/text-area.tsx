@@ -1,6 +1,11 @@
 import { Box, Text, useInput } from "ink";
-import type React from "react";
-import { useRef, useState } from "react";
+import React, { type MutableRefObject, useRef, useState } from "react";
+
+// React is imported for the runtime JSX transform used by tsx's dev shim.
+// Reference it explicitly so biome's useImportType rule doesn't downgrade
+// the import to type-only (which would erase the value at runtime and
+// crash with "React is not defined" when any JSX renders).
+void React;
 
 /**
  * Multi-line TextInput for Ink, adapted from NousResearch/hermes-agent's
@@ -201,8 +206,8 @@ export function TextArea({
   }
 
   function swap(
-    from: React.MutableRefObject<{ value: string; cursor: number }[]>,
-    to: React.MutableRefObject<{ value: string; cursor: number }[]>,
+    from: MutableRefObject<{ value: string; cursor: number }[]>,
+    to: MutableRefObject<{ value: string; cursor: number }[]>,
   ): void {
     const entry = from.current.pop();
     if (!entry) return;

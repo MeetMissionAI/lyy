@@ -1,7 +1,7 @@
 import type { SendMessageResult, State } from "@lyy/daemon";
 import { LYY_VERSION, type Message, type Peer } from "@lyy/shared";
 import { Box, Text, useInput } from "ink";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { buildClaudePrompt, injectIntoClaudePane } from "./inject-claude.js";
 import type { SubscribeCallbacks } from "./ipc.js";
 import { ThreadView } from "./thread-view.js";
