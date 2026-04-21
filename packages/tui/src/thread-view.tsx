@@ -1,5 +1,5 @@
 import type { Message } from "@lyy/shared";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import React, { useState } from "react";
 
@@ -9,6 +9,8 @@ export interface ThreadViewProps {
   selfPeerId: string;
   onSend: (body: string) => Promise<void> | void;
   onInjectClaude?: (question: string) => Promise<void> | void;
+  suggestion?: string;
+  onDismissSuggestion?: () => void;
 }
 
 export function ThreadView({
@@ -17,8 +19,23 @@ export function ThreadView({
   selfPeerId,
   onSend,
   onInjectClaude,
+  suggestion,
+  onDismissSuggestion,
 }: ThreadViewProps) {
   const [draft, setDraft] = useState("");
+
+  useInput(
+    (_input, key) => {
+      if (!suggestion) return;
+      if (key.tab) {
+        setDraft(suggestion);
+        onDismissSuggestion?.();
+      } else if (key.escape) {
+        onDismissSuggestion?.();
+      }
+    },
+    { isActive: Boolean(suggestion) },
+  );
 
   const handleSubmit = async (value: string) => {
     const body = value.trim();
@@ -51,6 +68,17 @@ export function ThreadView({
           </Text>
         );
       })}
+      {suggestion && (
+        <Box
+          flexDirection="column"
+          marginTop={1}
+          borderStyle="round"
+          borderColor="cyan"
+        >
+          <Text color="cyan">💡 Claude: {suggestion}</Text>
+          <Text dimColor>[Tab: accept · Esc: dismiss]</Text>
+        </Box>
+      )}
       <Box marginTop={1}>
         <Text>&gt; </Text>
         <TextInput value={draft} onChange={setDraft} onSubmit={handleSubmit} />

@@ -155,4 +155,40 @@ describe("ThreadView", () => {
     await new Promise((r) => setTimeout(r, 30));
     expect(onSend).not.toHaveBeenCalled();
   });
+
+  it("renders suggestion card when suggestion prop provided", () => {
+    const { lastFrame } = render(
+      <ThreadView
+        thread={{ threadId: "t1", shortId: 7, peerName: "alice" }}
+        messages={[]}
+        selfPeerId="peer-self"
+        onSend={async () => {}}
+        suggestion="How about dinner tonight?"
+        onDismissSuggestion={() => {}}
+      />,
+    );
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("💡 Claude: How about dinner tonight?");
+    expect(frame).toContain("Tab: accept");
+  });
+
+  it("Tab on suggestion card accepts into input + dismisses", async () => {
+    const onDismiss = vi.fn();
+    const { stdin, lastFrame } = render(
+      <ThreadView
+        thread={{ threadId: "t1", shortId: 7, peerName: "alice" }}
+        messages={[]}
+        selfPeerId="peer-self"
+        onSend={async () => {}}
+        suggestion="yes!"
+        onDismissSuggestion={onDismiss}
+      />,
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    stdin.write("\t"); // Tab
+    await new Promise((r) => setTimeout(r, 30));
+    expect(onDismiss).toHaveBeenCalled();
+    // draft should now contain "yes!"
+    expect(lastFrame()).toContain("yes!");
+  });
 });

@@ -31,6 +31,10 @@ export function App({
   const [messages, setMessages] = useState<Message[]>([]);
   const [state, setState] = useState(initialState);
   const [version, setVersion] = useState(0);
+  const [suggestion, setSuggestion] = useState<{
+    threadId: string;
+    body: string;
+  } | null>(null);
   const threads = state.threads;
   const blink = useBlink(500);
 
@@ -44,6 +48,11 @@ export function App({
       }
     } else if (view.kind === "thread") {
       if (key.escape) {
+        // When a suggestion card is showing, Esc dismisses it instead of leaving.
+        if (suggestion && suggestion.threadId === view.threadId) {
+          setSuggestion(null);
+          return;
+        }
         setView({ kind: "list" });
         setMessages([]);
       }
@@ -51,11 +60,14 @@ export function App({
   });
 
   useEffect(() => {
-    const unsub = subscribeEvents(async (event) => {
+    const unsub = subscribeEvents(async (event, payload) => {
       if (event === "message:new") {
         const fresh = await fetchState();
         setState(fresh);
         setVersion((v) => v + 1);
+      } else if (event === "suggest_reply") {
+        const p = payload as { threadId: string; body: string };
+        setSuggestion(p);
       }
     });
     return unsub;
@@ -94,6 +106,12 @@ export function App({
           });
           await injectIntoClaudePane(prompt);
         }}
+        suggestion={
+          suggestion && suggestion.threadId === view.threadId
+            ? suggestion.body
+            : undefined
+        }
+        onDismissSuggestion={() => setSuggestion(null)}
       />
     );
   }
