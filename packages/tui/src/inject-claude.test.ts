@@ -1,5 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { buildClaudePrompt } from "./inject-claude.js";
+import { buildClaudePrompt, parseClaudeMention } from "./inject-claude.js";
+
+describe("parseClaudeMention", () => {
+  it("matches @Claude with space", () => {
+    expect(parseClaudeMention("@Claude help")).toEqual({ question: "help" });
+  });
+  it("matches lowercase @claude", () => {
+    expect(parseClaudeMention("@claude help")).toEqual({ question: "help" });
+  });
+  it("matches @CC alias", () => {
+    expect(parseClaudeMention("@CC help")).toEqual({ question: "help" });
+    expect(parseClaudeMention("@cc help")).toEqual({ question: "help" });
+  });
+  it("matches with trailing punctuation (ASCII comma)", () => {
+    expect(parseClaudeMention("@Claude, help")).toEqual({ question: "help" });
+    expect(parseClaudeMention("@Claude,help")).toEqual({ question: "help" });
+  });
+  it("matches with CJK punctuation", () => {
+    expect(parseClaudeMention("@Claude,帮我")).toEqual({ question: "帮我" });
+    expect(parseClaudeMention("@Claude:帮我")).toEqual({ question: "帮我" });
+  });
+  it("doesn't false-match longer word", () => {
+    expect(parseClaudeMention("@Claudette hello")).toBeNull();
+    expect(parseClaudeMention("@ccache")).toBeNull();
+  });
+  it("returns null when no mention", () => {
+    expect(parseClaudeMention("hello world")).toBeNull();
+    expect(parseClaudeMention("ping @Claude inline")).toBeNull();
+  });
+  it("handles mention-only (empty question)", () => {
+    expect(parseClaudeMention("@Claude")).toEqual({ question: "" });
+  });
+});
 
 describe("buildClaudePrompt", () => {
   const tid = "5498d1b4-18ab-4efd-88bd-9740072c926c";

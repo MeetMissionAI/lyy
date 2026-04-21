@@ -1,5 +1,17 @@
 import { spawn } from "node:child_process";
 
+/**
+ * Detect a Claude mention at the start of the message. Matches `@claude` or
+ * `@cc` (case-insensitive) followed by any whitespace + punctuation, so all
+ * of these work: `@Claude help`, `@claude, help`, `@CC: help`, `@Claude,help`.
+ * `\b` prevents false matches like `@Claudette`. Returns the remainder as the
+ * question, or null if no mention.
+ */
+export function parseClaudeMention(body: string): { question: string } | null {
+  const m = body.match(/^@(claude|cc)\b[\s\p{P}]*/iu);
+  return m ? { question: body.slice(m[0].length) } : null;
+}
+
 export interface BuildPromptInput {
   threadId: string;
   threadShortId: number;

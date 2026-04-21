@@ -1,6 +1,7 @@
 import type { Message } from "@lyy/shared";
 import { Box, Text, useInput } from "ink";
 import React, { useState } from "react";
+import { parseClaudeMention } from "./inject-claude.js";
 import { TextArea } from "./text-area.js";
 
 export interface ThreadViewProps {
@@ -40,16 +41,19 @@ export function ThreadView({
   const handleSubmit = async (value: string) => {
     const body = value.trim();
     if (!body) return;
+    // Clear immediately for responsive feel; app.tsx optimistic-inserts the
+    // message so it's visible before the network round-trip completes.
+    setDraft("");
     try {
-      if (body.startsWith("@Claude ") && onInjectClaude) {
-        const question = body.slice("@Claude ".length);
-        await onInjectClaude(question);
+      const mention = parseClaudeMention(body);
+      if (mention && onInjectClaude) {
+        await onInjectClaude(mention.question);
       } else {
         await onSend(body);
       }
-      setDraft("");
     } catch (err) {
-      // Keep draft so user can retry; surface error on stderr for debugging.
+      // Restore draft so user can retry.
+      setDraft(value);
       console.error("[lyy-tui] send/inject failed:", err);
     }
   };
@@ -89,7 +93,7 @@ export function ThreadView({
             value={draft}
             onChange={setDraft}
             onSubmit={handleSubmit}
-            placeholder={String.raw`type message, Shift+Enter or \ + Enter newline, @Claude for help`}
+            placeholder={String.raw`type message, \ + Enter newline, @Claude or @CC for help`}
             isActive={!suggestion}
           />
         </Box>
