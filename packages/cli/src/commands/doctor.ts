@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import {
@@ -14,7 +15,12 @@ interface Check {
   detail: string;
 }
 
-export async function runDoctor(): Promise<void> {
+export interface DoctorOptions {
+  /** If true, SIGKILL any lyy-daemon processes not recorded in a profile's daemon.pid. */
+  fixDaemons?: boolean;
+}
+
+export async function runDoctor(opts: DoctorOptions = {}): Promise<void> {
   const checks: Check[] = [];
 
   checks.push(checkIdentity());
@@ -25,6 +31,7 @@ export async function runDoctor(): Promise<void> {
   checks.push(toolCheck("lyy-mcp"));
   checks.push(await checkDaemon());
   checks.push(await checkRelay());
+  checks.push(checkRogueDaemons(opts.fixDaemons ?? false));
 
   for (const c of checks) {
     console.log(`${c.ok ? "✓" : "✗"} ${c.name}: ${c.detail}`);
@@ -36,6 +43,108 @@ export async function runDoctor(): Promise<void> {
   } else {
     console.log("\nAll checks passed.");
   }
+}
+
+/**
+ * Parse `ps -A -o pid=,command=` output and filter to lyy-daemon processes
+ * that aren't in `legitPids`. Exported for unit testing — the live doctor
+ * check collects `legitPids` from each profile's `daemon.pid` file under
+ * `~/.lyy/profiles/<name>/` and runs `ps` itself.
+ */
+export function findRogueDaemons(
+  psOut: string,
+  legitPids: Set<number>,
+): number[] {
+  const rogue: number[] = [];
+  for (const line of psOut.split("\n")) {
+    const m = line.trimStart().match(/^(\d+)\s+(.*)$/);
+    if (!m) continue;
+    const pid = Number.parseInt(m[1] ?? "", 10);
+    const cmd = m[2] ?? "";
+    if (!Number.isFinite(pid)) continue;
+    // Require a path separator (or start of string) immediately before
+    // `lyy-daemon` so partial matches like `/path/not-lyy-daemon` don't
+    // trip the check.
+    const isDaemonProc =
+      /packages\/daemon\/bin\/lyy-daemon/.test(cmd) ||
+      /packages\/daemon\/.+\/src\/bin\.ts/.test(cmd) ||
+      /(^|\/)lyy-daemon(-dev)?(\s|$)/.test(cmd);
+    if (!isDaemonProc) continue;
+    if (legitPids.has(pid)) continue;
+    rogue.push(pid);
+  }
+  return rogue;
+}
+
+/**
+ * Collect every profile's legitimate daemon PID (from each `daemon.pid`
+ * file) and cross-check against running `lyy-daemon` processes. Any
+ * lyy-daemon process not listed in some profile's daemon.pid is considered
+ * rogue — leftover from a shutdown that hung or a CLI handshake that
+ * didn't escalate to SIGKILL. If `fix` is true, SIGKILL them.
+ */
+function checkRogueDaemons(fix: boolean): Check {
+  const profilesRoot = resolve(homedir(), ".lyy", "profiles");
+  const legitPids = new Set<number>();
+  if (existsSync(profilesRoot)) {
+    for (const entry of readdirSync(profilesRoot)) {
+      const pidFile = resolve(profilesRoot, entry, "daemon.pid");
+      if (!existsSync(pidFile)) continue;
+      try {
+        const pid = Number.parseInt(readFileSync(pidFile, "utf8").trim(), 10);
+        if (Number.isFinite(pid) && pid > 0) legitPids.add(pid);
+      } catch {
+        // ignore
+      }
+    }
+  }
+  // Also treat the current process as legitimate (running `lyy doctor` itself).
+  legitPids.add(process.pid);
+
+  let psOut: string;
+  try {
+    psOut = execFileSync("ps", ["-A", "-o", "pid=,command="], {
+      encoding: "utf8",
+    });
+  } catch (err) {
+    return {
+      name: "rogue daemons",
+      ok: false,
+      detail: `ps failed: ${(err as Error).message}`,
+    };
+  }
+  const rogue = findRogueDaemons(psOut, legitPids);
+
+  if (rogue.length === 0) {
+    return {
+      name: "rogue daemons",
+      ok: true,
+      detail: `0 found (${legitPids.size - 1} profile(s) owned)`,
+    };
+  }
+
+  if (!fix) {
+    return {
+      name: "rogue daemons",
+      ok: false,
+      detail: `${rogue.length} rogue pid(s): ${rogue.join(", ")} — rerun with --fix-daemons to SIGKILL`,
+    };
+  }
+
+  let killed = 0;
+  for (const pid of rogue) {
+    try {
+      process.kill(pid, "SIGKILL");
+      killed++;
+    } catch {
+      // ignore — already dead / insufficient perms
+    }
+  }
+  return {
+    name: "rogue daemons",
+    ok: true,
+    detail: `SIGKILLed ${killed}/${rogue.length} rogue pid(s): ${rogue.join(", ")}`,
+  };
 }
 
 function checkIdentity(): Check {

@@ -37,9 +37,15 @@ export function buildCli(): Command {
   program
     .command("doctor")
     .description(
-      "Health check: identity, daemon, relay, zellij, claude, settings.json",
+      "Health check: identity, daemon, relay, zellij, claude, settings.json, rogue daemons",
     )
-    .action(async () => runDoctor());
+    .option(
+      "--fix-daemons",
+      "SIGKILL any lyy-daemon processes not owned by a profile's daemon.pid",
+    )
+    .action(async (opts: { fixDaemons?: boolean }) =>
+      runDoctor({ fixDaemons: opts.fixDaemons }),
+    );
 
   program
     .command("statusline")

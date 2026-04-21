@@ -113,6 +113,29 @@ async function queryDaemonVersion(): Promise<{
   }
 }
 
+/**
+ * Poll `process.kill(pid, 0)` until the daemon is actually gone or the
+ * deadline elapses. Returns true if the process exited, false on timeout.
+ * Relying on socket drop (the old behavior) wasn't enough — a hung daemon
+ * can stop accepting new connections while still running, so `pingDaemon()`
+ * fails but the process lingers and keeps its relay session open.
+ */
+async function waitForDaemonExit(
+  pid: number,
+  timeoutMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true;
+    }
+    await sleep(100);
+  }
+  return false;
+}
+
 async function ensureDaemonRunning(): Promise<void> {
   if (await pingDaemon()) {
     const running = await queryDaemonVersion();
@@ -126,11 +149,16 @@ async function ensureDaemonRunning(): Promise<void> {
       } catch {
         // already dead
       }
-      // Wait up to 2s for socket to drop before respawn.
-      const deadline = Date.now() + 2000;
-      while (Date.now() < deadline) {
-        if (!(await pingDaemon())) break;
-        await sleep(100);
+      if (!(await waitForDaemonExit(running.pid, 3000))) {
+        console.log(
+          `[lyy] daemon pid ${running.pid} did not exit after SIGTERM — sending SIGKILL`,
+        );
+        try {
+          process.kill(running.pid, "SIGKILL");
+        } catch {
+          // already dead
+        }
+        await waitForDaemonExit(running.pid, 1000);
       }
     }
     // Fall through to respawn path below.

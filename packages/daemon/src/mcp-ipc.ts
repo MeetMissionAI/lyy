@@ -43,6 +43,13 @@ type Response = { id: number; result: unknown } | { id: number; error: string };
 export class McpIpcServer {
   private server: Server | null = null;
   private readonly subscribers = new Set<Socket>();
+  // Tracks every open connection (subscribers + in-flight one-shot callers)
+  // so stop() can destroy them all instead of waiting — `server.close()`
+  // only stops accepting new connections and hangs indefinitely while any
+  // client holds its end open. That hang was the root cause of local
+  // daemon pile-up: SIGTERM arrived but the process never exited because
+  // a TUI subscribe socket was still connected.
+  private readonly activeSockets = new Set<Socket>();
   private relayStatusProvider: () => boolean = () => false;
 
   /** Wired by main.ts so subscribe() can seed the initial relay status. */
@@ -93,8 +100,29 @@ export class McpIpcServer {
 
   async stop(): Promise<void> {
     if (!this.server) return;
-    await new Promise<void>((res) => this.server?.close(() => res()));
+    const server = this.server;
     this.server = null;
+
+    // Stop accepting new connections immediately.
+    const closePromise = new Promise<void>((res) => server.close(() => res()));
+
+    // Force-destroy every live connection. Without this, server.close()
+    // waits forever on long-lived subscribe sockets. destroy() is synchronous
+    // and guarantees the fd is closed; close callbacks still fire so the
+    // subscriber set cleans itself up.
+    for (const s of this.activeSockets) {
+      s.destroy();
+    }
+    this.activeSockets.clear();
+    this.subscribers.clear();
+
+    // Race the real close against a hard deadline so a buggy socket can't
+    // trap shutdown. 500ms is enough for destroy() to fully propagate.
+    await Promise.race([
+      closePromise,
+      new Promise<void>((res) => setTimeout(res, 500)),
+    ]);
+
     if (existsSync(this.sockPath)) {
       try {
         unlinkSync(this.sockPath);
@@ -105,6 +133,7 @@ export class McpIpcServer {
   }
 
   private handleConnection(socket: Socket): void {
+    this.activeSockets.add(socket);
     let buffer = "";
     socket.on("data", async (chunk) => {
       buffer += chunk.toString("utf8");
@@ -122,6 +151,7 @@ export class McpIpcServer {
     socket.on("error", () => undefined);
     socket.on("close", () => {
       this.subscribers.delete(socket);
+      this.activeSockets.delete(socket);
     });
   }
 

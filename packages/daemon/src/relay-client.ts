@@ -73,9 +73,34 @@ export class RelayClient extends EventEmitter {
     return this.socket?.connected ?? false;
   }
 
-  disconnect(): void {
-    this.socket?.disconnect();
+  /**
+   * Tear down the socket.io connection and wait for the transport to fully
+   * close, bounded by `timeoutMs` (default 500). The old sync disconnect()
+   * would return before the underlying WebSocket actually finished closing,
+   * leaving the relay to rely on pingTimeout (~45s) to notice — and, worse,
+   * allowing the daemon to `process.exit(0)` before the disconnect packet
+   * flushed so the relay session count leaked.
+   */
+  async disconnect(timeoutMs = 500): Promise<void> {
+    const socket = this.socket;
     this.socket = null;
+    if (!socket) return;
+    const closed = new Promise<void>((res) => {
+      let done = false;
+      const settle = (): void => {
+        if (done) return;
+        done = true;
+        res();
+      };
+      socket.once("disconnect", settle);
+      // engine.io's 'close' fires when the underlying transport is fully torn down.
+      // Cast through `unknown` because socket.io-client's typed emitter doesn't
+      // advertise the low-level event name.
+      (socket as unknown as EventEmitter).once("close", settle);
+      setTimeout(settle, timeoutMs);
+    });
+    socket.disconnect();
+    await closed;
   }
 
   private flushOutbox(): void {

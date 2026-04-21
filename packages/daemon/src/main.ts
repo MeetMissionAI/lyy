@@ -1,7 +1,15 @@
+import {
+  existsSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { loadIdentity } from "./identity.js";
-import { McpIpcServer } from "./mcp-ipc.js";
+import { DEFAULT_MCP_SOCK, McpIpcServer } from "./mcp-ipc.js";
 import { PaneInbox } from "./pane-inbox.js";
 import { PaneRegistry } from "./pane-registry.js";
+import { lyyPath } from "./paths.js";
 import { PresenceStore } from "./presence.js";
 import { RelayClient } from "./relay-client.js";
 import { RelayHttp } from "./relay-http.js";
@@ -14,12 +22,68 @@ export interface DaemonHandles {
 }
 
 /**
- * Boot the lyy-daemon process. Loads identity, opens the pane registry +
- * MCP IPC sockets, connects to relay over WebSocket, wires the router,
- * and returns a handle for graceful shutdown.
+ * Inspect an existing PID file without side effects. Returns the pid of
+ * another live daemon if one owns this LYY_HOME, or null if we may proceed
+ * (no file, malformed contents, stale pid, or self). Extracted for testing —
+ * `acquirePidLock` wraps this and actually writes the file + exits on conflict.
+ */
+export function inspectPidLock(
+  pidPath: string,
+  myPid: number,
+  deps: {
+    readFileSync: typeof readFileSync;
+    isAlive: (pid: number) => boolean;
+  } = {
+    readFileSync,
+    isAlive: (pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  },
+): number | null {
+  let raw: string;
+  try {
+    raw = deps.readFileSync(pidPath, "utf8").trim();
+  } catch {
+    return null; // No pid file yet.
+  }
+  const existing = Number.parseInt(raw, 10);
+  if (!Number.isFinite(existing) || existing <= 0) return null;
+  if (existing === myPid) return null;
+  return deps.isAlive(existing) ? existing : null;
+}
+
+/**
+ * Check the PID file. If it points at a live process that isn't us, another
+ * daemon already owns this LYY_HOME — abort to prevent pile-up. Stale PID
+ * files (process long gone) are cleared so this daemon can take over.
+ */
+function acquirePidLock(pidPath: string): void {
+  const conflict = inspectPidLock(pidPath, process.pid);
+  if (conflict !== null) {
+    console.error(
+      `[lyy-daemon] another daemon (pid ${conflict}) already running for this LYY_HOME; exiting.`,
+    );
+    process.exit(2);
+  }
+  writeFileSync(pidPath, String(process.pid), { flag: "w" });
+}
+
+/**
+ * Boot the lyy-daemon process. Loads identity, acquires the per-profile
+ * PID lock, opens the pane registry + MCP IPC sockets, connects to relay
+ * over WebSocket, wires the router, and returns a handle for graceful
+ * shutdown.
  */
 export async function startDaemon(): Promise<DaemonHandles> {
   const identity = loadIdentity();
+  const pidPath = lyyPath("daemon.pid");
+  acquirePidLock(pidPath);
+
   const state = new StateStore();
   const paneRegistry = new PaneRegistry();
   const paneInbox = new PaneInbox();
@@ -104,26 +168,85 @@ export async function startDaemon(): Promise<DaemonHandles> {
 
   relayClient.connect();
 
+  // Self-eviction watchdog: if another daemon replaces the mcp.sock (unlink
+  // + bind at the same path), its inode will differ from ours. Voluntarily
+  // shut down so we don't become a zombie holding a relay session.
+  let myInode: number | null = null;
+  try {
+    myInode = statSync(DEFAULT_MCP_SOCK).ino;
+  } catch {
+    // Freshly bound socket should always stat; if not, watchdog just skips.
+  }
+  let shuttingDown = false;
+  let watchdogTriggered = (): void => {
+    /* wired below */
+  };
+  const watchdog = setInterval(() => {
+    if (shuttingDown) return;
+    try {
+      const cur = statSync(DEFAULT_MCP_SOCK).ino;
+      if (myInode !== null && cur !== myInode) {
+        console.log(
+          "[lyy-daemon] mcp.sock inode changed; another daemon took over — exiting",
+        );
+        watchdogTriggered();
+      }
+    } catch {
+      console.log("[lyy-daemon] mcp.sock missing — likely replaced; exiting");
+      watchdogTriggered();
+    }
+  }, 10_000);
+  watchdog.unref();
+
   console.log(
     `[lyy-daemon] started for peer ${identity.peerId}, relay=${identity.relayUrl}`,
   );
 
-  return {
-    shutdown: async () => {
-      console.log("[lyy-daemon] shutting down");
-      relayClient.disconnect();
-      await mcp.stop();
-      await paneRegistry.stop();
-    },
+  const shutdown = async (): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log("[lyy-daemon] shutting down");
+    clearInterval(watchdog);
+    await relayClient.disconnect();
+    await mcp.stop();
+    await paneRegistry.stop();
+    if (existsSync(pidPath)) {
+      try {
+        unlinkSync(pidPath);
+      } catch {
+        // ignore
+      }
+    }
   };
+  // Watchdog triggers the same shutdown path, then force-exits after a brief
+  // grace period so we don't leak a replaced daemon forever.
+  watchdogTriggered = () => {
+    void shutdown().finally(() => process.exit(0));
+  };
+
+  return { shutdown };
 }
 
 /** Called by bin/lyy-daemon — boots + installs signal handlers. */
 export async function run(): Promise<void> {
   const handles = await startDaemon();
-  const onSignal = (sig: NodeJS.Signals) => {
+  const onSignal = (sig: NodeJS.Signals): void => {
     console.log(`[lyy-daemon] received ${sig}`);
-    handles.shutdown().finally(() => process.exit(0));
+    // Hard deadline: if shutdown() hangs (server.close, socket.io cleanup,
+    // anything), force-exit. Without this the daemon becomes a zombie
+    // holding its relay session for the CLI that replaced it.
+    const hardKill = setTimeout(() => {
+      console.error("[lyy-daemon] shutdown timed out; force-exit");
+      process.exit(1);
+    }, 3000);
+    hardKill.unref();
+    handles
+      .shutdown()
+      .catch((err) => console.error("[lyy-daemon] shutdown error:", err))
+      .finally(() => {
+        clearTimeout(hardKill);
+        process.exit(0);
+      });
   };
   process.on("SIGINT", onSignal);
   process.on("SIGTERM", onSignal);

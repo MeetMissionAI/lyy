@@ -210,4 +210,32 @@ describe("McpIpcServer", () => {
     });
     socket.destroy();
   });
+
+  it("stop() resolves quickly even with an active subscriber holding the socket", async () => {
+    // Before the fix, server.close() waited forever on any live connection,
+    // so a hung subscribe socket kept the daemon running past SIGTERM. This
+    // test reproduces the hang scenario and asserts stop() returns within
+    // the 500ms race window (we allow 1.5s of slack for slow CI runners).
+    const socket = createConnection(sockPath);
+    await new Promise<void>((resolve) =>
+      socket.once("connect", () => resolve()),
+    );
+    socket.write(`${JSON.stringify({ id: 1, method: "subscribe" })}\n`);
+    await new Promise((r) => setTimeout(r, 50));
+
+    const started = Date.now();
+    await server.stop();
+    const elapsed = Date.now() - started;
+    // Core assertion: before the fix, stop() hung indefinitely on the live
+    // subscriber. Now it races against a 500ms cap; 1.5s of slack covers
+    // loaded CI runners.
+    expect(elapsed).toBeLessThan(1500);
+
+    // Belt-and-suspenders: after stop() returned, writes to the destroyed
+    // server socket should no longer be round-trippable. Don't assert on
+    // socket.destroyed flag — Node surfaces that asynchronously from the
+    // client's point of view.
+    socket.destroy();
+    // stop() is idempotent enough to be called twice by afterEach.
+  });
 });
