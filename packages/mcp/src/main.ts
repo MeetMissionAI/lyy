@@ -8,13 +8,24 @@ export async function run(): Promise<void> {
   const mode = detectMode();
 
   // In thread mode, register this pane with the daemon so incoming messages
-  // for the bound thread are injected into our pane inbox.
+  // for the bound thread are injected into our pane inbox. The registry is
+  // first-write-wins: if another pane in another lyy window already owns
+  // this thread, we log a loud error and exit so Claude Code surfaces it
+  // to the user instead of racing to reply on the same thread.
   if (mode.kind === "thread") {
     try {
-      await ipc.call("register_pane", {
+      const result = await ipc.call<
+        { ok: true } | { ok: false; existingPaneId: string }
+      >("register_pane", {
         threadShortId: mode.threadShortId,
         paneId: process.env.ZELLIJ_PANE_ID ?? `pid-${process.pid}`,
       });
+      if (result.ok === false) {
+        console.error(
+          `[lyy-mcp] Thread #${mode.threadShortId} already has an open pane (${result.existingPaneId}). Close the other pane first, or /pickup a different thread.`,
+        );
+        process.exit(1);
+      }
       const cleanup = async () => {
         try {
           await ipc.call("unregister_pane", {

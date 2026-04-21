@@ -38,10 +38,30 @@ describe("PaneRegistry", () => {
     expect(registry.size()).toBe(0);
   });
 
-  it("re-register overwrites previous paneId", async () => {
-    await client.register(3, "p1");
-    await client.register(3, "p2");
+  it("registering a thread twice returns the existing paneId (first wins)", async () => {
+    const first = await client.register(7, "pane-A");
+    expect(first).toEqual({ ok: true });
+    const second = await client.register(7, "pane-B");
+    expect(second).toEqual({ ok: false, existingPaneId: "pane-A" });
+    // First one wins — findPane still returns the original binding.
+    expect(registry.findPane(7)).toBe("pane-A");
+    expect(await client.query(7)).toBe("pane-A");
+  });
+
+  it("re-register after unregister is allowed", async () => {
+    expect(await client.register(3, "p1")).toEqual({ ok: true });
+    await client.unregister(3);
+    expect(await client.register(3, "p2")).toEqual({ ok: true });
     expect(await client.query(3)).toBe("p2");
+  });
+
+  it("direct PaneRegistry.register returns ok / conflict", async () => {
+    expect(registry.register(42, "pane-X")).toEqual({ ok: true });
+    expect(registry.register(42, "pane-Y")).toEqual({
+      ok: false,
+      existingPaneId: "pane-X",
+    });
+    expect(registry.findPane(42)).toBe("pane-X");
   });
 
   it("server cleans up its socket file on stop", async () => {

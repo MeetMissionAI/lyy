@@ -150,16 +150,15 @@ export class McpIpcServer {
           threadShortId: number;
           paneId: string;
         };
-        (
-          this.deps.paneRegistry as unknown as { map: Map<number, string> }
-        ).map.set(threadShortId, paneId);
-        return { ok: true };
+        // First-write wins. If another pane already owns this thread the
+        // registry returns `{ ok: false, existingPaneId }`; we forward the
+        // result unchanged so the MCP caller can surface a user-facing
+        // error instead of silently stealing the binding.
+        return this.deps.paneRegistry.register(threadShortId, paneId);
       }
       case "unregister_pane": {
         const { threadShortId } = params as { threadShortId: number };
-        (
-          this.deps.paneRegistry as unknown as { map: Map<number, string> }
-        ).map.delete(threadShortId);
+        this.deps.paneRegistry.unregister(threadShortId);
         return { ok: true };
       }
       case "drain_pane_inbox": {
