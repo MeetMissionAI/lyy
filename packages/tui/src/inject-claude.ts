@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 
 export interface BuildPromptInput {
+  threadId: string;
   threadShortId: number;
   peerName: string;
   history: { sentAt: string; fromPeer: string; body: string }[];
@@ -19,7 +20,9 @@ export function buildClaudePrompt(input: BuildPromptInput): string {
 History:
 ${lines.join("\n")}
 
-My question: ${input.question}`;
+My question: ${input.question}
+
+To send your draft back to me, call the lyy.suggest_reply tool with thread_id="${input.threadId}" and body="<your draft>". The draft will appear as a card in my TUI for me to accept, edit, and send. Do NOT send it yourself.`;
 }
 
 /**

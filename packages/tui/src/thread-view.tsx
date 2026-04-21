@@ -59,29 +59,37 @@ export function ThreadView({
       <Text bold>
         ← #{thread.shortId} @{thread.peerName}
       </Text>
-      {messages.map((m) => {
-        const who = m.fromPeer === selfPeerId ? "me" : thread.peerName;
-        const time = m.sentAt.slice(11, 16);
-        return (
-          <Text key={m.id}>
-            [{time}] {who}: {m.body}
-          </Text>
-        );
-      })}
+      <Box flexDirection="column" flexGrow={1}>
+        {messages.map((m) => {
+          const who = m.fromPeer === selfPeerId ? "me" : thread.peerName;
+          const time = m.sentAt.slice(11, 16);
+          return (
+            <Text key={m.id}>
+              [{time}] {who}: {m.body}
+            </Text>
+          );
+        })}
+      </Box>
       {suggestion && (
         <Box
           flexDirection="column"
           marginTop={1}
           borderStyle="round"
           borderColor="cyan"
+          paddingX={1}
         >
           <Text color="cyan">💡 Claude: {suggestion}</Text>
           <Text dimColor>[Tab: accept · Esc: dismiss]</Text>
         </Box>
       )}
-      <Box marginTop={1}>
-        <Text>&gt; </Text>
-        <TextInput value={draft} onChange={setDraft} onSubmit={handleSubmit} />
+      <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
+        <Text color="cyan">&gt; </Text>
+        <TextInput
+          value={draft}
+          onChange={setDraft}
+          onSubmit={handleSubmit}
+          placeholder="type message, @Claude for help, Esc back"
+        />
       </Box>
     </Box>
   );

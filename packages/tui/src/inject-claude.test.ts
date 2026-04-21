@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildClaudePrompt } from "./inject-claude.js";
 
 describe("buildClaudePrompt", () => {
+  const tid = "5498d1b4-18ab-4efd-88bd-9740072c926c";
+
   it("packs history + question with self/peer labels and HH:MM time", () => {
     const prompt = buildClaudePrompt({
+      threadId: tid,
       threadShortId: 7,
       peerName: "alice",
       history: [
@@ -29,6 +32,7 @@ describe("buildClaudePrompt", () => {
 
   it("handles empty history", () => {
     const prompt = buildClaudePrompt({
+      threadId: tid,
       threadShortId: 7,
       peerName: "alice",
       history: [],
@@ -38,5 +42,18 @@ describe("buildClaudePrompt", () => {
     expect(prompt).toContain("LYY thread #7 with @alice");
     expect(prompt).toContain("History:");
     expect(prompt).toContain("My question: start conversation");
+  });
+
+  it("includes threadId UUID + suggest_reply instruction", () => {
+    const prompt = buildClaudePrompt({
+      threadId: tid,
+      threadShortId: 7,
+      peerName: "alice",
+      history: [],
+      selfPeerId: "peer-self",
+      question: "hi",
+    });
+    expect(prompt).toContain(`thread_id="${tid}"`);
+    expect(prompt).toContain("lyy.suggest_reply");
   });
 });

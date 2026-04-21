@@ -93,11 +93,24 @@ export function App({
         messages={messages}
         selfPeerId={selfPeerId}
         onSend={async (body) => {
+          // Optimistic insert: append locally first so the input clears into
+          // the visible transcript immediately. Daemon/router never echoes
+          // self messages back (recipients = participants - sender), so we
+          // won't see duplicates from subscribe push or refetch.
+          const optimistic: Message = {
+            id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            threadId: view.threadId,
+            fromPeer: selfPeerId,
+            body,
+            sentAt: new Date().toISOString(),
+            seq: 0,
+          };
+          setMessages((prev) => [...prev, optimistic]);
           await onSend(view.threadId, body);
-          setVersion((v) => v + 1);
         }}
         onInjectClaude={async (question) => {
           const prompt = buildClaudePrompt({
+            threadId: t.threadId,
             threadShortId: t.shortId,
             peerName: t.peerName,
             history: messages,
