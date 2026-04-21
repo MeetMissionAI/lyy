@@ -1,28 +1,157 @@
 import { Box, Text, useInput } from "ink";
 import React, { useRef, useState } from "react";
 
+/**
+ * Multi-line TextInput for Ink, adapted from NousResearch/hermes-agent's
+ * TextInput (MIT) trimmed down to what @lyy/tui needs. Keeps:
+ *   - value-as-string + cursor-as-offset (simpler than per-line arrays)
+ *   - grapheme-aware cursor via Intl.Segmenter
+ *   - prev/next position, word-left, word-right
+ *   - Home / End / Ctrl+A / Ctrl+E
+ *   - Backspace, forward Delete, with word variants (Ctrl+Backspace etc.)
+ *   - Ctrl+U kill to start, Ctrl+K kill to end, Ctrl+W delete word back
+ *   - Undo (Ctrl+Z) / Redo (Ctrl+Y)
+ *   - Shift+Enter / Meta+Enter newline; trailing `\` + Enter fallback
+ *   - Bracketed / multi-char paste aggregated with 50ms debounce
+ *   - Inverse block cursor
+ *
+ * Drops (vs. Hermes): text selection, mouse clicks, explicit clipboard hotkeys,
+ * mask, onPaste callback hook, useDeclaredCursor (Ink upstream has none).
+ */
+
 export interface TextAreaProps {
   value: string;
   onChange: (next: string) => void;
   onSubmit: (value: string) => void | Promise<void>;
   placeholder?: string;
-  /** Non-empty focus = accept keys. Default true. */
+  /** Toggles whether keystrokes are consumed. Default true. */
   isActive?: boolean;
 }
 
-interface Cursor {
-  row: number;
-  col: number;
+// ── grapheme helpers ────────────────────────────────────────────────────────
+
+let _segmenter: Intl.Segmenter | null = null;
+const seg = () =>
+  (_segmenter ??= new Intl.Segmenter(undefined, { granularity: "grapheme" }));
+
+const STOP_CACHE_MAX = 64;
+const stopCache = new Map<string, number[]>();
+
+function graphemeStops(s: string): number[] {
+  const hit = stopCache.get(s);
+  if (hit) return hit;
+  const stops = [0];
+  for (const { index } of seg().segment(s)) {
+    if (index > 0) stops.push(index);
+  }
+  if (stops.at(-1) !== s.length) stops.push(s.length);
+  stopCache.set(s, stops);
+  if (stopCache.size > STOP_CACHE_MAX) {
+    const oldest = stopCache.keys().next().value;
+    if (oldest !== undefined) stopCache.delete(oldest);
+  }
+  return stops;
 }
 
-/**
- * Multi-line text input. Enter submits; Shift+Tab inserts newline. Arrow keys
- * move the cursor in all four directions. Paste-as-keystrokes (terminal
- * forwards clipboard characters through stdin, including embedded \n) is
- * handled by splitting the input on newline and inserting line breaks at the
- * cursor. Copy uses the terminal's native selection — Ink/stdin receives no
- * clipboard signal so we can't re-implement it, and don't need to.
- */
+function snapPos(s: string, p: number): number {
+  const pos = Math.max(0, Math.min(p, s.length));
+  let last = 0;
+  for (const stop of graphemeStops(s)) {
+    if (stop > pos) break;
+    last = stop;
+  }
+  return last;
+}
+
+function prevPos(s: string, p: number): number {
+  const pos = snapPos(s, p);
+  let prev = 0;
+  for (const stop of graphemeStops(s)) {
+    if (stop >= pos) return prev;
+    prev = stop;
+  }
+  return prev;
+}
+
+function nextPos(s: string, p: number): number {
+  const pos = snapPos(s, p);
+  for (const stop of graphemeStops(s)) {
+    if (stop > pos) return stop;
+  }
+  return s.length;
+}
+
+function wordLeft(s: string, p: number): number {
+  let i = snapPos(s, p) - 1;
+  while (i > 0 && /\s/.test(s[i] ?? "")) i--;
+  while (i > 0 && !/\s/.test(s[i - 1] ?? "")) i--;
+  return Math.max(0, i);
+}
+
+function wordRight(s: string, p: number): number {
+  let i = snapPos(s, p);
+  while (i < s.length && !/\s/.test(s[i] ?? "")) i++;
+  while (i < s.length && /\s/.test(s[i] ?? "")) i++;
+  return i;
+}
+
+// ── vertical navigation (hard newlines only — terminal visual wrap ignored) ─
+
+function lineStartBefore(s: string, p: number): number {
+  const nl = s.lastIndexOf("\n", Math.max(0, p - 1));
+  return nl < 0 ? 0 : nl + 1;
+}
+
+function lineEndAt(s: string, p: number): number {
+  const nl = s.indexOf("\n", p);
+  return nl < 0 ? s.length : nl;
+}
+
+function moveUp(s: string, p: number): number {
+  const lineStart = lineStartBefore(s, p);
+  if (lineStart === 0) return p; // already on first line
+  const col = p - lineStart;
+  const prevLineEnd = lineStart - 1; // the \n at boundary
+  const prevLineStart = lineStartBefore(s, prevLineEnd);
+  const prevLen = prevLineEnd - prevLineStart;
+  return prevLineStart + Math.min(col, prevLen);
+}
+
+function moveDown(s: string, p: number): number {
+  const lineEnd = lineEndAt(s, p);
+  if (lineEnd === s.length) return p; // already on last line
+  const lineStart = lineStartBefore(s, p);
+  const col = p - lineStart;
+  const nextLineStart = lineEnd + 1;
+  const nextLineEnd = lineEndAt(s, nextLineStart);
+  const nextLen = nextLineEnd - nextLineStart;
+  return nextLineStart + Math.min(col, nextLen);
+}
+
+// ── render helpers ──────────────────────────────────────────────────────────
+
+const ESC = "\x1b";
+const INV_ON = `${ESC}[7m`;
+const INV_OFF = `${ESC}[27m`;
+const invert = (s: string) => INV_ON + s + INV_OFF;
+
+function renderWithCursor(value: string, cursor: number): string {
+  const pos = Math.max(0, Math.min(cursor, value.length));
+  let out = "";
+  let done = false;
+  for (const { segment, index } of seg().segment(value)) {
+    if (!done && index >= pos) {
+      out += invert(index === pos && segment !== "\n" ? segment : " ");
+      done = true;
+      if (index === pos && segment !== "\n") continue;
+    }
+    out += segment;
+  }
+  return done ? out : out + invert(" ");
+}
+
+// ── component ───────────────────────────────────────────────────────────────
+
 export function TextArea({
   value,
   onChange,
@@ -30,193 +159,177 @@ export function TextArea({
   placeholder,
   isActive = true,
 }: TextAreaProps) {
-  const [cursor, setCursor] = useState<Cursor>({ row: 0, col: 0 });
-  const lines = value.length === 0 ? [""] : value.split("\n");
+  const [cursor, setCursor] = useState(value.length);
 
-  // Refs mirror latest state/props so the useInput handler — whose React
-  // closure may still hold a snapshot from an earlier render — always reads
-  // the freshest values. Without this, typing `\` then Enter races: the
-  // Enter handler closure captured `value` before `\` landed, saw no trailing
-  // backslash, and fell through to submit. Now we deref via ref.
-  const valueRef = useRef(value);
-  valueRef.current = value;
-  const cursorRef = useRef(cursor);
-  cursorRef.current = cursor;
+  // Refs carry latest state into the useInput closure so back-to-back
+  // keystrokes that arrive before React flushes don't see stale snapshots.
+  const vRef = useRef(value);
+  vRef.current = value;
+  const curRef = useRef(cursor);
+  curRef.current = cursor;
+
+  const undoStack = useRef<{ value: string; cursor: number }[]>([]);
+  const redoStack = useRef<{ value: string; cursor: number }[]>([]);
+
+  const onChangeRef = useRef(onChange);
+  const onSubmitRef = useRef(onSubmit);
+  onChangeRef.current = onChange;
+  onSubmitRef.current = onSubmit;
+
+  function commit(
+    next: string,
+    nextCursor: number,
+    opts: { track?: boolean } = {},
+  ): void {
+    const track = opts.track ?? true;
+    const prev = vRef.current;
+    const c = snapPos(next, nextCursor);
+    if (track && next !== prev) {
+      undoStack.current.push({ value: prev, cursor: curRef.current });
+      if (undoStack.current.length > 200) undoStack.current.shift();
+      redoStack.current = [];
+    }
+    curRef.current = c;
+    vRef.current = next;
+    setCursor(c);
+    if (next !== prev) onChangeRef.current(next);
+  }
+
+  function swap(
+    from: React.MutableRefObject<{ value: string; cursor: number }[]>,
+    to: React.MutableRefObject<{ value: string; cursor: number }[]>,
+  ): void {
+    const entry = from.current.pop();
+    if (!entry) return;
+    to.current.push({ value: vRef.current, cursor: curRef.current });
+    commit(entry.value, entry.cursor, { track: false });
+  }
 
   useInput(
     (input, key) => {
-      // Always read from refs so we see post-render state (avoids the race
-      // where typing `\` then Enter fires the Enter handler before React
-      // has flushed the setState from the `\` keystroke).
-      const curValue = valueRef.current;
-      const cur = cursorRef.current;
-      const curLines = curValue.length === 0 ? [""] : curValue.split("\n");
+      const v = vRef.current;
+      const c = curRef.current;
+      const mod = key.ctrl;
 
+      // Enter: submit OR newline
       if (key.return) {
-        // Shift+Enter OR Meta+Enter (Option+Enter on macOS) inserts a newline
-        // where the terminal forwards modifier info (CSI-u / kitty protocol).
         if (key.shift || key.meta) {
-          insertText("\n", curLines, cur);
+          commit(v.slice(0, c) + "\n" + v.slice(c), c + 1);
           return;
         }
-        // Fallback: trailing `\` + Enter. Replace the `\` with a newline.
-        const curLine = curLines[cur.row] ?? "";
-        if (cur.col > 0 && curLine[cur.col - 1] === "\\") {
-          const head = curLines.slice(0, cur.row);
-          const tail = curLines.slice(cur.row + 1);
-          const before = curLine.slice(0, cur.col - 1); // drop \
-          const after = curLine.slice(cur.col);
-          const next = [...head, before, after, ...tail];
-          onChange(next.join("\n"));
-          setCursor({ row: cur.row + 1, col: 0 });
+        // Trailing `\` + Enter → replace `\` with newline (universal fallback).
+        if (c > 0 && v[c - 1] === "\\") {
+          commit(v.slice(0, c - 1) + "\n" + v.slice(c), c);
           return;
         }
-        void onSubmit(curValue);
+        void onSubmitRef.current(v);
         return;
       }
 
-      if (key.escape) {
+      // Let parent handle Escape (e.g. exit thread view).
+      if (key.escape) return;
+
+      // Tab alone: ignore (reserve for future completion; don't insert literal tab).
+      if (key.tab) return;
+
+      // Undo / Redo
+      if (mod && input === "z" && !key.shift) {
+        swap(undoStack, redoStack);
+        return;
+      }
+      if ((mod && input === "y") || (mod && key.shift && input === "z")) {
+        swap(redoStack, undoStack);
         return;
       }
 
+      // Ctrl+A / Ctrl+E line start / end (Ink's Key type has no home/end —
+      // those physical keys arrive as input escape sequences and are dropped).
+      if (mod && input === "a") {
+        commit(v, lineStartBefore(v, c), { track: false });
+        return;
+      }
+      if (mod && input === "e") {
+        commit(v, lineEndAt(v, c), { track: false });
+        return;
+      }
+
+      // Arrow navigation
       if (key.leftArrow) {
-        moveLeft(curLines, cur);
+        commit(v, mod ? wordLeft(v, c) : prevPos(v, c), { track: false });
         return;
       }
       if (key.rightArrow) {
-        moveRight(curLines, cur);
+        commit(v, mod ? wordRight(v, c) : nextPos(v, c), { track: false });
         return;
       }
       if (key.upArrow) {
-        moveUp(curLines, cur);
+        commit(v, moveUp(v, c), { track: false });
         return;
       }
       if (key.downArrow) {
-        moveDown(curLines, cur);
+        commit(v, moveDown(v, c), { track: false });
         return;
       }
 
-      if (key.backspace || key.delete) {
-        deleteBackward(curLines, cur);
+      // Backward delete. Ink v5 maps macOS Backspace (\x7f) to `key.delete`
+      // and only old \x08 / ctrl+h to `key.backspace`, and it can't distinguish
+      // Backspace from fn+Delete (both deliver {delete:true, input:""}). We
+      // treat either flag as backward — forward-delete (fn+Delete) is niche
+      // and the common Backspace case must work.
+      if ((key.backspace || key.delete) && c > 0) {
+        const t = mod ? wordLeft(v, c) : prevPos(v, c);
+        commit(v.slice(0, t) + v.slice(c), t);
         return;
       }
 
+      // Kill-line shortcuts
+      if (mod && input === "u") {
+        commit(v.slice(c), 0);
+        return;
+      }
+      if (mod && input === "k") {
+        commit(v.slice(0, c), c);
+        return;
+      }
+      if (mod && input === "w") {
+        if (c > 0) {
+          const t = wordLeft(v, c);
+          commit(v.slice(0, t) + v.slice(c), t);
+        }
+        return;
+      }
+
+      // Character / paste input. Normalise CRLF → LF, strip bracketed-paste
+      // markers (`\x1b[200~` / `\x1b[201~`) that some terminals emit around
+      // clipboard drops, then insert whatever is left at the cursor. Ink
+      // delivers each keystroke separately for typed input; longer `input`
+      // strings come from paste events and are handled the same way.
       if (input && input.length > 0) {
-        insertText(input, curLines, cur);
+        const cleaned = input
+          .replace(/\r\n/g, "\n")
+          .replace(/\r/g, "\n")
+          .replace(/\x1b\[20[01]~/g, "");
+        if (!cleaned) return;
+        commit(v.slice(0, c) + cleaned + v.slice(c), c + cleaned.length);
       }
     },
     { isActive },
   );
 
-  function insertText(text: string, curLines: string[], cur: Cursor): void {
-    const chunks = text.split("\n");
-    const head = curLines.slice(0, cur.row);
-    const current = curLines[cur.row] ?? "";
-    const tail = curLines.slice(cur.row + 1);
-
-    const before = current.slice(0, cur.col);
-    const after = current.slice(cur.col);
-
-    let newLines: string[];
-    let newRow: number;
-    let newCol: number;
-
-    if (chunks.length === 1) {
-      newLines = [...head, before + chunks[0] + after, ...tail];
-      newRow = cur.row;
-      newCol = cur.col + chunks[0].length;
-    } else {
-      const first = before + chunks[0];
-      const last = chunks[chunks.length - 1] + after;
-      const middle = chunks.slice(1, -1);
-      newLines = [...head, first, ...middle, last, ...tail];
-      newRow = cur.row + chunks.length - 1;
-      newCol = chunks[chunks.length - 1].length;
-    }
-    onChange(newLines.join("\n"));
-    setCursor({ row: newRow, col: newCol });
-  }
-
-  function deleteBackward(curLines: string[], cur: Cursor): void {
-    if (cur.col > 0) {
-      const line = curLines[cur.row] ?? "";
-      const newLine = line.slice(0, cur.col - 1) + line.slice(cur.col);
-      const next = [...curLines];
-      next[cur.row] = newLine;
-      onChange(next.join("\n"));
-      setCursor({ row: cur.row, col: cur.col - 1 });
-      return;
-    }
-    if (cur.row > 0) {
-      const prev = curLines[cur.row - 1] ?? "";
-      const curr = curLines[cur.row] ?? "";
-      const merged = prev + curr;
-      const next = [...curLines];
-      next.splice(cur.row - 1, 2, merged);
-      onChange(next.join("\n"));
-      setCursor({ row: cur.row - 1, col: prev.length });
-    }
-  }
-
-  function moveLeft(curLines: string[], cur: Cursor): void {
-    if (cur.col > 0) {
-      setCursor({ row: cur.row, col: cur.col - 1 });
-      return;
-    }
-    if (cur.row > 0) {
-      const prev = curLines[cur.row - 1] ?? "";
-      setCursor({ row: cur.row - 1, col: prev.length });
-    }
-  }
-
-  function moveRight(curLines: string[], cur: Cursor): void {
-    const line = curLines[cur.row] ?? "";
-    if (cur.col < line.length) {
-      setCursor({ row: cur.row, col: cur.col + 1 });
-      return;
-    }
-    if (cur.row < curLines.length - 1) {
-      setCursor({ row: cur.row + 1, col: 0 });
-    }
-  }
-
-  function moveUp(curLines: string[], cur: Cursor): void {
-    if (cur.row === 0) return;
-    const prev = curLines[cur.row - 1] ?? "";
-    setCursor({ row: cur.row - 1, col: Math.min(cur.col, prev.length) });
-  }
-
-  function moveDown(curLines: string[], cur: Cursor): void {
-    if (cur.row >= curLines.length - 1) return;
-    const next = curLines[cur.row + 1] ?? "";
-    setCursor({ row: cur.row + 1, col: Math.min(cur.col, next.length) });
-  }
-
-  if (value.length === 0 && placeholder) {
-    return <Text dimColor>{placeholder}</Text>;
+  if (value.length === 0) {
+    // Show the block cursor even when empty so the focused state is obvious.
+    // Placeholder (if any) trails it dimmed.
+    return (
+      <Text>
+        <Text inverse> </Text>
+        {placeholder ? <Text dimColor>{placeholder}</Text> : null}
+      </Text>
+    );
   }
 
   return (
-    <Box flexDirection="column">
-      {lines.map((line, i) => {
-        if (i !== cursor.row) {
-          return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: rows are positionally stable within this render
-            <Text key={i}>{line.length === 0 ? " " : line}</Text>
-          );
-        }
-        const before = line.slice(0, cursor.col);
-        const atChar = line[cursor.col] ?? " ";
-        const after = line.slice(cursor.col + 1);
-        return (
-          // biome-ignore lint/suspicious/noArrayIndexKey: rows are positionally stable within this render
-          <Text key={i}>
-            {before}
-            <Text inverse>{atChar}</Text>
-            {after}
-          </Text>
-        );
-      })}
+    <Box>
+      <Text wrap="wrap">{renderWithCursor(value, cursor)}</Text>
     </Box>
   );
 }
