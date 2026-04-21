@@ -33,7 +33,10 @@ function zellijLayout(name: string): string {
     children
   }
   tab name="${name}" {
-    pane command="claude"
+    pane split_direction="vertical" {
+      pane command="claude"
+      pane size="40%" command="lyy-tui"
+    }
   }
 }
 `;
