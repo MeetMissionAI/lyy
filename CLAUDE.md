@@ -2,6 +2,10 @@
 
 MissionAI 内部工具：在两个 Claude Code session 之间建立持久化双向对话通道。解决两个痛点——(1) 同仓多人开发时不敢动别人代码、缺乏轻量确认通道；(2) 非技术同事的 Claude Code 遇到技术判断题只能瞎猜或打断同事。接收方处理 peer 对话时主 session 上下文不被污染。v1 单团队 self-hosted，走自家 relay + Supabase。
 
+## Release discipline
+
+**DO NOT `git push` or push tags until the user confirms a local smoke test passed.** Commit locally (merges, tags) is fine — just hold off on any push to GitHub. Build/test/biome green does NOT count as sufficient; user must exercise the real flow end-to-end first. Ask for explicit "pushed?" / "green?" signal before `git push origin …` or `git push origin <tag>`.
+
 ## Monorepo layout
 
 | Path             | What                                                                 |
