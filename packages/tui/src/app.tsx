@@ -4,6 +4,7 @@ import { Box, Text, useInput } from "ink";
 import React, { useEffect, useState } from "react";
 import type { EventHandler } from "./ipc.js";
 import { ThreadView } from "./thread-view.js";
+import { useBlink } from "./use-blink.js";
 
 type View = { kind: "list" } | { kind: "thread"; threadId: string };
 
@@ -28,6 +29,7 @@ export function App({
   const [state, setState] = useState(initialState);
   const [version, setVersion] = useState(0);
   const threads = state.threads;
+  const blink = useBlink(500);
 
   useInput((_input, key) => {
     if (view.kind === "list") {
@@ -84,8 +86,10 @@ export function App({
       <Text bold>LYY · 📬 {state.unreadCount} unread</Text>
       {threads.map((t, i) => {
         const marker = i === selected ? "▶ " : "  ";
+        const isUnread = t.unread > 0 && !t.archived;
+        const color = isUnread ? (blink ? "yellow" : "white") : undefined;
         return (
-          <Text key={t.threadId}>
+          <Text key={t.threadId} color={color}>
             {marker}#{t.shortId} @{t.peerName} {t.lastBody}
           </Text>
         );
