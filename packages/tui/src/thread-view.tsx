@@ -1,7 +1,7 @@
 import type { Message } from "@lyy/shared";
 import { Box, Text, useInput } from "ink";
-import TextInput from "ink-text-input";
 import React, { useState } from "react";
+import { TextArea } from "./text-area.js";
 
 export interface ThreadViewProps {
   thread: { threadId: string; shortId: number; peerName: string };
@@ -84,12 +84,15 @@ export function ThreadView({
       )}
       <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
         <Text color="cyan">&gt; </Text>
-        <TextInput
-          value={draft}
-          onChange={setDraft}
-          onSubmit={handleSubmit}
-          placeholder="type message, @Claude for help, Esc back"
-        />
+        <Box flexGrow={1} flexDirection="column">
+          <TextArea
+            value={draft}
+            onChange={setDraft}
+            onSubmit={handleSubmit}
+            placeholder="type message, Shift+Tab newline, @Claude for help"
+            isActive={!suggestion}
+          />
+        </Box>
       </Box>
     </Box>
   );
