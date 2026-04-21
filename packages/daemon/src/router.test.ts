@@ -223,4 +223,27 @@ describe("MessageRouter", () => {
     expect(s.threads).toEqual([]);
     expect(s.lastSeenSeq[THREAD_ID]).toBe(1);
   });
+
+  it("calls onIncomingMessage callback at end of handleIncoming", async () => {
+    const calls: unknown[] = [];
+    const customRelay = new EventEmitter();
+    const customRouter = new MessageRouter({
+      relay: customRelay as unknown as RelayClient,
+      paneRegistry: registry,
+      paneInbox: inbox,
+      state,
+      selfPeerId: SELF_PEER,
+      onIncomingMessage: (env) => calls.push(env),
+    });
+    customRouter.start();
+    await seedThreadSummary();
+    const env = {
+      message: newMessage({ fromPeer: OTHER_PEER, seq: 5 }),
+      threadShortId: SHORT_ID,
+    };
+    customRelay.emit("message:new", env);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual(env);
+  });
 });

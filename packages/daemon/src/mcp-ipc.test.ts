@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +10,7 @@ import type { RelayHttp } from "./relay-http.js";
 import { StateStore } from "./state.js";
 
 let dir: string;
+let sockPath: string;
 let server: McpIpcServer;
 let client: McpIpcClient;
 let registry: PaneRegistry;
@@ -18,7 +20,7 @@ let relayHttp: RelayHttp;
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), "lyy-mcpipc-"));
-  const sock = join(dir, "mcp.sock");
+  sockPath = join(dir, "mcp.sock");
   registry = new PaneRegistry(join(dir, "reg.sock"));
   await registry.start();
   state = new StateStore(join(dir, "state.json"));
@@ -41,10 +43,10 @@ beforeEach(async () => {
 
   server = new McpIpcServer(
     { relayHttp, state, paneRegistry: registry, paneInbox: inbox },
-    sock,
+    sockPath,
   );
   await server.start();
-  client = new McpIpcClient(sock);
+  client = new McpIpcClient(sockPath);
 });
 
 afterEach(async () => {
@@ -122,5 +124,80 @@ describe("McpIpcServer", () => {
     await expect(
       client.call("send_message", { toPeer: "x", body: "y" }),
     ).rejects.toThrow(/relay 500/);
+  });
+
+  it("subscribers receive event frames from pushToSubscribers", async () => {
+    const events: Record<string, unknown>[] = [];
+    const responses: Record<string, unknown>[] = [];
+    const socket = createConnection(sockPath);
+    await new Promise<void>((resolve) =>
+      socket.once("connect", () => resolve()),
+    );
+    let buffer = "";
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString("utf8");
+      let nl = buffer.indexOf("\n");
+      while (nl !== -1) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
+        try {
+          const frame = JSON.parse(line) as Record<string, unknown>;
+          if (frame.type === "event") events.push(frame);
+          else responses.push(frame);
+        } catch {
+          // ignore
+        }
+        nl = buffer.indexOf("\n");
+      }
+    });
+    socket.write(`${JSON.stringify({ id: 1, method: "subscribe" })}\n`);
+    // Wait for subscribe response round-trip
+    await new Promise((r) => setTimeout(r, 50));
+    expect(responses).toEqual([{ id: 1, result: { ok: true } }]);
+
+    server.pushToSubscribers("ping", { hello: 1 });
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(events).toEqual([
+      { type: "event", event: "ping", payload: { hello: 1 } },
+    ]);
+    socket.destroy();
+  });
+
+  it("suggest_reply IPC pushes event to subscribers", async () => {
+    const events: Record<string, unknown>[] = [];
+    const socket = createConnection(sockPath);
+    await new Promise<void>((resolve) =>
+      socket.once("connect", () => resolve()),
+    );
+    let buffer = "";
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString("utf8");
+      let nl = buffer.indexOf("\n");
+      while (nl !== -1) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
+        try {
+          const frame = JSON.parse(line) as Record<string, unknown>;
+          if (frame.type === "event") events.push(frame);
+        } catch {
+          // ignore
+        }
+        nl = buffer.indexOf("\n");
+      }
+    });
+    socket.write(`${JSON.stringify({ id: 1, method: "subscribe" })}\n`);
+    await new Promise((r) => setTimeout(r, 50));
+
+    const caller = new McpIpcClient(sockPath);
+    await caller.call("suggest_reply", { threadId: "t1", body: "hello" });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(events).toContainEqual({
+      type: "event",
+      event: "suggest_reply",
+      payload: { threadId: "t1", body: "hello" },
+    });
+    socket.destroy();
   });
 });

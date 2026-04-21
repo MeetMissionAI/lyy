@@ -15,6 +15,8 @@ export interface RouterDeps {
   selfPeerId: string;
   /** Body preview length saved into state.json. */
   previewLen?: number;
+  /** Invoked at the end of handleIncoming so subscribers (e.g. MCP IPC) can fan out. */
+  onIncomingMessage?: (env: MessageEnvelope) => void;
 }
 
 const DEFAULT_PREVIEW_LEN = 80;
@@ -116,5 +118,7 @@ export class MessageRouter {
 
       return { ...s, threads, lastSeenSeq, unreadCount };
     });
+
+    this.deps.onIncomingMessage?.(env);
   }
 }
