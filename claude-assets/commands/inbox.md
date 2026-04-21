@@ -13,4 +13,4 @@ Format the result as a numbered list, ordered by `lastMessageAt` descending:
 If `unreadCount` is 0 say "Inbox is empty (no unread messages)."
 
 At the end print the hint:
-> /pickup <shortId> to open a thread · /archive <shortId> to hide
+> Open the LYY TUI (right zellij pane) and select a thread with ↑/↓ Enter · /archive <shortId> to hide
