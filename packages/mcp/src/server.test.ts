@@ -61,7 +61,7 @@ async function callTool(
 }
 
 describe("buildMcpServer (main mode)", () => {
-  it("lists main-mode tools (excludes thread-only 'reply')", async () => {
+  it("lists main-mode tools", async () => {
     const { server } = buildMcpServer({
       ipcClient: fakeIpc(),
       mode: { kind: "main" },
@@ -76,9 +76,9 @@ describe("buildMcpServer (main mode)", () => {
     expect(names).toContain("archive_thread");
     expect(names).toContain("unarchive_thread");
     expect(names).toContain("search");
-    expect(names).toContain("spawn_thread");
     expect(names).toContain("suggest_reply");
     expect(names).not.toContain("reply");
+    expect(names).not.toContain("spawn_thread");
   });
 
   it("send_to → ipc.call('send_message', ...)", async () => {
@@ -165,7 +165,7 @@ describe("buildMcpServer (main mode)", () => {
     expect(JSON.parse(res.content[0].text)).toEqual({ ok: true });
   });
 
-  it("calling 'reply' in main mode throws (tool not enabled)", async () => {
+  it("calling 'reply' in main mode throws (tool removed)", async () => {
     const { server } = buildMcpServer({
       ipcClient: fakeIpc(),
       mode: { kind: "main" },
@@ -173,39 +173,5 @@ describe("buildMcpServer (main mode)", () => {
     await expect(callTool(server, "reply", { body: "no" })).rejects.toThrow(
       /unknown tool/,
     );
-  });
-});
-
-describe("buildMcpServer (thread mode)", () => {
-  const threadMode = {
-    kind: "thread" as const,
-    threadId: "550e8400-e29b-41d4-a716-446655440000",
-    threadShortId: 12,
-  };
-
-  it("exposes 'reply' but hides main-only tools (send_to, spawn_thread)", async () => {
-    const { server } = buildMcpServer({
-      ipcClient: fakeIpc(),
-      mode: threadMode,
-    });
-    const result = (await listTools(server)) as { tools: { name: string }[] };
-    const names = result.tools.map((t) => t.name);
-    expect(names).toContain("reply");
-    expect(names).toContain("read_thread");
-    expect(names).toContain("archive_thread");
-    expect(names).not.toContain("send_to");
-    expect(names).not.toContain("spawn_thread");
-  });
-
-  it("reply → ipc.call('send_message') with bound threadId", async () => {
-    const ipc = fakeIpc({
-      send_message: vi.fn(async () => ({ messageId: "rmid", seq: 9 })),
-    });
-    const { server } = buildMcpServer({ ipcClient: ipc, mode: threadMode });
-    await callTool(server, "reply", { body: "got it" });
-    expect(ipc.call).toHaveBeenCalledWith("send_message", {
-      threadId: threadMode.threadId,
-      body: "got it",
-    });
   });
 });

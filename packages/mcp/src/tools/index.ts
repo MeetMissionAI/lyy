@@ -4,10 +4,8 @@ import { archiveThreadTool, unarchiveThreadTool } from "./archive.js";
 import { listInboxTool, listThreadsTool } from "./inbox.js";
 import { listPeersTool } from "./list-peers.js";
 import { readThreadTool } from "./read-thread.js";
-import { replyTool } from "./reply.js";
 import { searchTool } from "./search.js";
 import { sendToTool } from "./send-to.js";
-import { spawnThreadTool } from "./spawn-thread.js";
 import { suggestReplyTool } from "./suggest-reply.js";
 
 export interface ToolContext {
@@ -40,8 +38,6 @@ export const allTools: LyyTool[] = [
   listThreadsTool,
   listPeersTool,
   readThreadTool,
-  replyTool,
-  spawnThreadTool,
   archiveThreadTool,
   unarchiveThreadTool,
   searchTool,

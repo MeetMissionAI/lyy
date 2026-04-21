@@ -6,7 +6,6 @@ import { type HookEvent, runHook } from "./commands/hook.js";
 import { type InitOptions, runInit } from "./commands/init.js";
 import { runRepair } from "./commands/repair.js";
 import { runStatusline } from "./commands/statusline.js";
-import { runThread } from "./commands/thread.js";
 
 export function buildCli(): Command {
   const program = new Command()
@@ -27,13 +26,6 @@ export function buildCli(): Command {
     .option("--email <email>", "Your team email")
     .option("--relay-url <url>", "Relay base URL (env: LYY_RELAY_URL)")
     .action(async (opts: InitOptions) => runInit(opts));
-
-  program
-    .command("thread <shortId>")
-    .description("Open a peer thread in a new pane")
-    .action(async (shortId: string) => {
-      await runThread(Number.parseInt(shortId, 10));
-    });
 
   program
     .command("repair")

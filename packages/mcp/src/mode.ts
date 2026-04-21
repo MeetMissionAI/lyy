@@ -1,18 +1,10 @@
-export type Mode =
-  | { kind: "main" }
-  | { kind: "thread"; threadId: string; threadShortId: number };
+export type Mode = { kind: "main" };
 
 /**
- * Detect MCP mode from environment. Set LYY_MODE=thread plus
- * LYY_THREAD_ID and LYY_THREAD_SHORT_ID inside thread panes (the
- * SessionStart hook is responsible for exporting these before claude).
+ * MCP mode detection. LYY TUI replaces per-thread Claude panes, so the MCP
+ * always runs in main mode now. The `Mode` type is retained (as a
+ * single-variant union) so downstream consumers compile unchanged.
  */
-export function detectMode(env: NodeJS.ProcessEnv = process.env): Mode {
-  if (env.LYY_MODE !== "thread") return { kind: "main" };
-  const threadId = env.LYY_THREAD_ID;
-  const shortId = env.LYY_THREAD_SHORT_ID;
-  if (!threadId || !shortId) return { kind: "main" };
-  const parsed = Number.parseInt(shortId, 10);
-  if (!Number.isFinite(parsed)) return { kind: "main" };
-  return { kind: "thread", threadId, threadShortId: parsed };
+export function detectMode(): Mode {
+  return { kind: "main" };
 }
