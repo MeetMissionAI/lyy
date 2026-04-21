@@ -36,13 +36,13 @@ jobs:
         run: |
           set -e
           mkdir -p out
-          for pkg in cli daemon mcp; do
+          for pkg in cli daemon mcp tui; do
             pnpm --filter "@lyy/${pkg}" deploy --prod "out/${pkg}"
           done
           # cli needs claude-assets/ (slash command templates + settings
           # snippet) at runtime; pnpm deploy ships only the package itself.
           cp -R claude-assets "out/cli/claude-assets"
-          for pkg in cli daemon mcp; do
+          for pkg in cli daemon mcp tui; do
             tar -czf "out/lyy-${pkg}.tgz" -C "out/${pkg}" .
             ls -lh "out/lyy-${pkg}.tgz"
           done
@@ -50,7 +50,7 @@ jobs:
       - name: Compute checksums
         run: |
           cd out
-          sha256sum lyy-cli.tgz lyy-daemon.tgz lyy-mcp.tgz > SHA256SUMS.txt
+          sha256sum lyy-cli.tgz lyy-daemon.tgz lyy-mcp.tgz lyy-tui.tgz > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Create or update GitHub Release
@@ -62,11 +62,11 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists — uploading assets (clobber)"
             gh release upload "$TAG" \
-              out/lyy-cli.tgz out/lyy-daemon.tgz out/lyy-mcp.tgz out/SHA256SUMS.txt \
+              out/lyy-cli.tgz out/lyy-daemon.tgz out/lyy-mcp.tgz out/lyy-tui.tgz out/SHA256SUMS.txt \
               --clobber
           else
             gh release create "$TAG" \
-              out/lyy-cli.tgz out/lyy-daemon.tgz out/lyy-mcp.tgz out/SHA256SUMS.txt \
+              out/lyy-cli.tgz out/lyy-daemon.tgz out/lyy-mcp.tgz out/lyy-tui.tgz out/SHA256SUMS.txt \
               --title "$TAG" \
               --generate-notes
           fi

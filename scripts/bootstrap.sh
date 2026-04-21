@@ -54,7 +54,7 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
 mkdir -p "$RUNTIME_DIR"
-for pkg in cli daemon mcp; do
+for pkg in cli daemon mcp tui; do
   TARBALL="$TMPDIR/lyy-${pkg}.tgz"
   info "fetching lyy-${pkg}.tgz"
   curl -fsSL "${BASE_URL}/lyy-${pkg}.tgz" -o "$TARBALL"
@@ -64,7 +64,7 @@ for pkg in cli daemon mcp; do
   tar -xzf "$TARBALL" -C "$DEST"
 done
 
-for b in "cli/bin/lyy" "daemon/bin/lyy-daemon" "mcp/bin/lyy-mcp"; do
+for b in "cli/bin/lyy" "daemon/bin/lyy-daemon" "mcp/bin/lyy-mcp" "tui/bin/lyy-tui"; do
   [[ -f "$RUNTIME_DIR/$b" ]] || die "expected $RUNTIME_DIR/$b, missing"
 done
 
@@ -73,7 +73,7 @@ done
 # fails with ENOENT. Using an absolute path skips PATH resolution entirely.
 NODE_BIN="$(command -v node)"
 info "pinning shebang → #!$NODE_BIN"
-for b in "cli/bin/lyy" "daemon/bin/lyy-daemon" "mcp/bin/lyy-mcp"; do
+for b in "cli/bin/lyy" "daemon/bin/lyy-daemon" "mcp/bin/lyy-mcp" "tui/bin/lyy-tui"; do
   sed -i.bak "1s|.*|#!$NODE_BIN|" "$RUNTIME_DIR/$b"
   rm -f "$RUNTIME_DIR/$b.bak"
 done
@@ -88,7 +88,7 @@ fi
 
 echo
 echo "→ linking bins into $BIN_DIR"
-for pair in "lyy:cli/bin/lyy" "lyy-daemon:daemon/bin/lyy-daemon" "lyy-mcp:mcp/bin/lyy-mcp"; do
+for pair in "lyy:cli/bin/lyy" "lyy-daemon:daemon/bin/lyy-daemon" "lyy-mcp:mcp/bin/lyy-mcp" "lyy-tui:tui/bin/lyy-tui"; do
   name="${pair%%:*}"
   path="${pair##*:}"
   $SUDO ln -sf "$RUNTIME_DIR/$path" "$BIN_DIR/$name"

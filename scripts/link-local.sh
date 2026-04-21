@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dev mode: symlink ~/.lyy/bin/{lyy,lyy-daemon,lyy-mcp} to the bin-dev
+# Dev mode: symlink ~/.lyy/bin/{lyy,lyy-daemon,lyy-mcp,lyy-tui} to the bin-dev
 # scripts in THIS repo. No sudo. Edit TS → next \`lyy\` sees the change.
 #
 #   ./scripts/link-local.sh              # link to this checkout
@@ -18,10 +18,11 @@ SUDO=""
 LYY="$REPO_ROOT/packages/cli/bin/lyy-dev"
 DAEMON="$REPO_ROOT/packages/daemon/bin/lyy-daemon-dev"
 MCP="$REPO_ROOT/packages/mcp/bin/lyy-mcp-dev"
+TUI="$REPO_ROOT/packages/tui/bin/lyy-tui-dev"
 
 case "$ACTION" in
   unlink|--unlink)
-    for name in lyy lyy-daemon lyy-mcp; do
+    for name in lyy lyy-daemon lyy-mcp lyy-tui; do
       $SUDO rm -f "$BIN_DIR/$name"
       echo "  removed $BIN_DIR/$name"
     done
@@ -35,7 +36,7 @@ if [[ ! -d "$REPO_ROOT/node_modules/.pnpm" ]]; then
   (cd "$REPO_ROOT" && pnpm install --frozen-lockfile)
 fi
 
-for bin in "$LYY" "$DAEMON" "$MCP"; do
+for bin in "$LYY" "$DAEMON" "$MCP" "$TUI"; do
   [[ -f "$bin" ]] || { echo "✗ missing $bin" >&2; exit 1; }
 done
 
@@ -46,6 +47,7 @@ echo "Linking $BIN_DIR → $REPO_ROOT"
 $SUDO ln -sf "$LYY" "$BIN_DIR/lyy"
 $SUDO ln -sf "$DAEMON" "$BIN_DIR/lyy-daemon"
 $SUDO ln -sf "$MCP" "$BIN_DIR/lyy-mcp"
+$SUDO ln -sf "$TUI" "$BIN_DIR/lyy-tui"
 
 # PATH injection (only if BIN_DIR is user-owned and not yet on PATH)
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
