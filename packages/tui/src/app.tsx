@@ -2,25 +2,32 @@ import type { State } from "@lyy/daemon";
 import type { Message } from "@lyy/shared";
 import { Box, Text, useInput } from "ink";
 import React, { useEffect, useState } from "react";
+import type { EventHandler } from "./ipc.js";
 import { ThreadView } from "./thread-view.js";
 
 type View = { kind: "list" } | { kind: "thread"; threadId: string };
 
 export interface AppProps {
   initialState: State;
+  fetchState?: () => Promise<State>;
   fetchMessages?: (threadId: string) => Promise<Message[]>;
+  subscribeEvents?: (onEvent: EventHandler) => () => void;
   selfPeerId?: string;
 }
 
 export function App({
   initialState,
+  fetchState = async () => initialState,
   fetchMessages = async () => [],
+  subscribeEvents = () => () => {},
   selfPeerId = "",
 }: AppProps) {
   const [selected, setSelected] = useState(0);
   const [view, setView] = useState<View>({ kind: "list" });
   const [messages, setMessages] = useState<Message[]>([]);
-  const threads = initialState.threads;
+  const [state, setState] = useState(initialState);
+  const [version, setVersion] = useState(0);
+  const threads = state.threads;
 
   useInput((_input, key) => {
     if (view.kind === "list") {
@@ -39,10 +46,22 @@ export function App({
   });
 
   useEffect(() => {
+    const unsub = subscribeEvents(async (event) => {
+      if (event === "message:new") {
+        const fresh = await fetchState();
+        setState(fresh);
+        setVersion((v) => v + 1);
+      }
+    });
+    return unsub;
+  }, [fetchState, subscribeEvents]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: version bump triggers refetch on message:new
+  useEffect(() => {
     if (view.kind === "thread") {
       void fetchMessages(view.threadId).then(setMessages);
     }
-  }, [view, fetchMessages]);
+  }, [view, fetchMessages, version]);
 
   if (view.kind === "thread") {
     const t = threads.find((x) => x.threadId === view.threadId);
@@ -62,7 +81,7 @@ export function App({
 
   return (
     <Box flexDirection="column">
-      <Text bold>LYY · 📬 {initialState.unreadCount} unread</Text>
+      <Text bold>LYY · 📬 {state.unreadCount} unread</Text>
       {threads.map((t, i) => {
         const marker = i === selected ? "▶ " : "  ";
         return (

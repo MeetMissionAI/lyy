@@ -134,6 +134,35 @@ describe("App list view", () => {
     expect(lastFrame()).toContain("alice: hi");
   });
 
+  it("refetches state on message:new event", async () => {
+    let capturedHandler: ((event: string, payload: unknown) => void) | null =
+      null;
+    const subscribeEvents = (
+      onEvent: (event: string, payload: unknown) => void,
+    ) => {
+      capturedHandler = onEvent;
+      return () => {};
+    };
+    const updatedState = {
+      ...fakeState,
+      unreadCount: 5,
+      threads: fakeState.threads.map((t) => ({ ...t, unread: 5 })),
+    };
+    const fetchState = vi.fn(async () => updatedState);
+    const { lastFrame } = render(
+      <App
+        initialState={fakeState}
+        fetchState={fetchState}
+        subscribeEvents={subscribeEvents}
+      />,
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    expect(capturedHandler).not.toBeNull();
+    capturedHandler?.("message:new", { seq: 99 });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(lastFrame()).toContain("5 unread");
+  });
+
   it("Esc in detail returns to list", async () => {
     const { stdin, lastFrame } = render(
       <App
