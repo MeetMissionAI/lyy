@@ -310,19 +310,15 @@ export function App({
           <Text dimColor>(no threads)</Text>
         )}
       </Box>
-      <Box justifyContent="space-between">
-        <Text dimColor>
-          [Tab] switch · [↑↓] move · [Enter] open · [Esc] back
+      <Text dimColor>[Tab] switch · [↑↓] move · [Enter] open · [Esc] back</Text>
+      <Text dimColor>
+        v{LYY_VERSION} · daemon{" "}
+        <Text color={daemonUp ? "green" : "red"}>{daemonUp ? "●" : "○"}</Text>
+        {" · "}relay{" "}
+        <Text color={relayConnected ? "green" : "red"}>
+          {relayConnected ? "●" : "○"}
         </Text>
-        <Text dimColor>
-          v{LYY_VERSION} · daemon{" "}
-          <Text color={daemonUp ? "green" : "red"}>{daemonUp ? "●" : "○"}</Text>
-          {" · "}relay{" "}
-          <Text color={relayConnected ? "green" : "red"}>
-            {relayConnected ? "●" : "○"}
-          </Text>
-        </Text>
-      </Box>
+      </Text>
     </Box>
   );
 }
