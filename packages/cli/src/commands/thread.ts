@@ -25,11 +25,13 @@ export async function runThread(shortId: number): Promise<void> {
 
   // Claude CLI requires --session-id to be a UUID; threadId already is one.
   const sessionId = target.threadId;
-  const env = {
+  const env: Record<string, string> = {
     LYY_MODE: "thread",
     LYY_THREAD_ID: target.threadId,
     LYY_THREAD_SHORT_ID: String(shortId),
   };
+  // Propagate LYY_HOME so the new pane resolves the right profile.
+  if (process.env.LYY_HOME) env.LYY_HOME = process.env.LYY_HOME;
 
   if (process.env.ZELLIJ) {
     await runInZellij(sessionId, env);

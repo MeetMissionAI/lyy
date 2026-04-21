@@ -28,11 +28,15 @@ export const spawnThreadTool: LyyTool = {
     const shortId = Number(args.thread_short_id);
     // Claude CLI requires --session-id to be a UUID; threadId already is one.
     const sessionId = threadId;
-    const env = {
+    const env: Record<string, string> = {
       LYY_MODE: "thread",
       LYY_THREAD_ID: threadId,
       LYY_THREAD_SHORT_ID: String(shortId),
     };
+    // Propagate LYY_HOME so the spawned pane's daemon/MCP resolve the right
+    // profile's identity.json + sockets (zellij action new-pane starts a
+    // fresh process; env is explicit).
+    if (process.env.LYY_HOME) env.LYY_HOME = process.env.LYY_HOME;
 
     const inZellij = !!process.env.ZELLIJ;
     if (inZellij) {
