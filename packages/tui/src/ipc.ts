@@ -44,44 +44,77 @@ export async function sendToPeer(
 
 export type EventHandler = (event: string, payload: unknown) => void;
 
+export interface SubscribeCallbacks {
+  onEvent: EventHandler;
+  /** Fires when the daemon IPC socket opens; emits synthetic daemon:status up. */
+  onDaemonUp?: () => void;
+  /** Fires on any socket error/close; emits synthetic daemon:status down. */
+  onDaemonDown?: () => void;
+}
+
 /**
- * Open a long-lived subscribe socket to the daemon. onEvent fires for each
- * {type:"event",event,payload} frame. Returns a dispose() that closes the
- * socket.
+ * Open a long-lived subscribe socket to the daemon. Auto-reconnects with
+ * backoff so a daemon restart transparently re-attaches the TUI. `onEvent`
+ * fires for each {type,event,payload} frame; `onDaemonUp`/`Down` expose
+ * connection lifecycle for the status bar.
+ *
+ * Returns a dispose() that tears down the current socket + cancels any
+ * pending reconnect timer.
  */
 export function subscribe(
-  onEvent: EventHandler,
+  cb: SubscribeCallbacks,
   sockPath: string = DEFAULT_MCP_SOCK,
 ): () => void {
-  const socket = createConnection(sockPath, () => {
-    socket.write(`${JSON.stringify({ id: 1, method: "subscribe" })}\n`);
-  });
-  let buffer = "";
-  socket.on("data", (chunk) => {
-    buffer += chunk.toString("utf8");
-    let nl = buffer.indexOf("\n");
-    while (nl !== -1) {
-      const line = buffer.slice(0, nl);
-      buffer = buffer.slice(nl + 1);
-      if (line.trim()) {
-        try {
-          const frame = JSON.parse(line) as {
-            type?: string;
-            event?: string;
-            payload?: unknown;
-          };
-          if (frame.type === "event" && typeof frame.event === "string") {
-            onEvent(frame.event, frame.payload);
+  let cancelled = false;
+  let currentSocket: ReturnType<typeof createConnection> | null = null;
+  let reconnectTimer: NodeJS.Timeout | null = null;
+
+  const connect = (): void => {
+    if (cancelled) return;
+    const socket = createConnection(sockPath, () => {
+      socket.write(`${JSON.stringify({ id: 1, method: "subscribe" })}\n`);
+      cb.onDaemonUp?.();
+    });
+    currentSocket = socket;
+    let buffer = "";
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString("utf8");
+      let nl = buffer.indexOf("\n");
+      while (nl !== -1) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
+        if (line.trim()) {
+          try {
+            const frame = JSON.parse(line) as {
+              type?: string;
+              event?: string;
+              payload?: unknown;
+            };
+            if (frame.type === "event" && typeof frame.event === "string") {
+              cb.onEvent(frame.event, frame.payload);
+            }
+          } catch {
+            // ignore malformed line
           }
-        } catch {
-          // ignore malformed line
         }
+        nl = buffer.indexOf("\n");
       }
-      nl = buffer.indexOf("\n");
-    }
-  });
-  socket.on("error", () => {
-    // swallow — TUI shouldn't crash if daemon restarts
-  });
-  return () => socket.destroy();
+    });
+    const drop = (): void => {
+      currentSocket = null;
+      cb.onDaemonDown?.();
+      if (cancelled) return;
+      reconnectTimer = setTimeout(connect, 1000);
+    };
+    socket.on("error", drop);
+    socket.on("close", drop);
+  };
+
+  connect();
+
+  return () => {
+    cancelled = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    currentSocket?.destroy();
+  };
 }

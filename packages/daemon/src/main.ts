@@ -65,8 +65,13 @@ export async function startDaemon(): Promise<DaemonHandles> {
   });
   router.start();
 
+  let relayConnected = false;
+  mcp.setRelayStatusProvider(() => relayConnected);
+
   relayClient.on("connected", async () => {
     console.log("[lyy-daemon] relay connected");
+    relayConnected = true;
+    mcp.pushToSubscribers("relay:status", { connected: true });
     try {
       await syncStateFromRelay({
         relayHttp,
@@ -79,9 +84,11 @@ export async function startDaemon(): Promise<DaemonHandles> {
       console.log(`[lyy-daemon] state sync failed: ${(err as Error).message}`);
     }
   });
-  relayClient.on("disconnected", (reason) =>
-    console.log(`[lyy-daemon] relay disconnected: ${reason}`),
-  );
+  relayClient.on("disconnected", (reason) => {
+    console.log(`[lyy-daemon] relay disconnected: ${reason}`);
+    relayConnected = false;
+    mcp.pushToSubscribers("relay:status", { connected: false });
+  });
   relayClient.on("connect_error", (err) =>
     console.log(`[lyy-daemon] relay connect_error: ${(err as Error).message}`),
   );

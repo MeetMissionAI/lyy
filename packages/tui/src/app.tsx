@@ -1,9 +1,9 @@
 import type { SendMessageResult, State } from "@lyy/daemon";
-import type { Message, Peer } from "@lyy/shared";
+import { LYY_VERSION, type Message, type Peer } from "@lyy/shared";
 import { Box, Text, useInput } from "ink";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { buildClaudePrompt, injectIntoClaudePane } from "./inject-claude.js";
-import type { EventHandler } from "./ipc.js";
+import type { SubscribeCallbacks } from "./ipc.js";
 import { ThreadView } from "./thread-view.js";
 import { useBlink } from "./use-blink.js";
 
@@ -25,7 +25,7 @@ export interface AppProps {
     body: string,
   ) => Promise<SendMessageResult | undefined>;
   onSendToPeer?: (peerName: string, body: string) => Promise<SendMessageResult>;
-  subscribeEvents?: (onEvent: EventHandler) => () => void;
+  subscribeEvents?: (callbacks: SubscribeCallbacks) => () => void;
   selfPeerId?: string;
 }
 
@@ -45,6 +45,8 @@ export function App({
   const [state, setState] = useState(initialState);
   const [peers, setPeers] = useState<Peer[]>(initialPeers);
   const [onlinePeers, setOnlinePeers] = useState<Set<string>>(new Set());
+  const [daemonUp, setDaemonUp] = useState(true);
+  const [relayConnected, setRelayConnected] = useState(false);
   const [focus, setFocus] = useState<Focus>("threads");
   const [peerSelected, setPeerSelected] = useState(0);
   const [threadSelected, setThreadSelected] = useState(0);
@@ -105,18 +107,29 @@ export function App({
   });
 
   useEffect(() => {
-    const unsub = subscribeEvents(async (event, payload) => {
-      if (event === "message:new") {
-        const fresh = await fetchState();
-        setState(fresh);
-        setVersion((v) => v + 1);
-      } else if (event === "suggest_reply") {
-        const p = payload as { threadId: string; body: string };
-        setSuggestion(p);
-      } else if (event === "presence") {
-        const p = payload as { online: string[] };
-        setOnlinePeers(new Set(p.online));
-      }
+    const unsub = subscribeEvents({
+      onEvent: async (event, payload) => {
+        if (event === "message:new") {
+          const fresh = await fetchState();
+          setState(fresh);
+          setVersion((v) => v + 1);
+        } else if (event === "suggest_reply") {
+          const p = payload as { threadId: string; body: string };
+          setSuggestion(p);
+        } else if (event === "presence") {
+          const p = payload as { online: string[] };
+          setOnlinePeers(new Set(p.online));
+        } else if (event === "relay:status") {
+          const p = payload as { connected: boolean };
+          setRelayConnected(p.connected);
+        }
+      },
+      onDaemonUp: () => setDaemonUp(true),
+      onDaemonDown: () => {
+        setDaemonUp(false);
+        setRelayConnected(false);
+        setOnlinePeers(new Set());
+      },
     });
     return unsub;
   }, [fetchState, subscribeEvents]);
@@ -297,7 +310,19 @@ export function App({
           <Text dimColor>(no threads)</Text>
         )}
       </Box>
-      <Text dimColor>[Tab] switch · [↑↓] move · [Enter] open · [Esc] back</Text>
+      <Box justifyContent="space-between">
+        <Text dimColor>
+          [Tab] switch · [↑↓] move · [Enter] open · [Esc] back
+        </Text>
+        <Text dimColor>
+          v{LYY_VERSION} · daemon{" "}
+          <Text color={daemonUp ? "green" : "red"}>{daemonUp ? "●" : "○"}</Text>
+          {" · "}relay{" "}
+          <Text color={relayConnected ? "green" : "red"}>
+            {relayConnected ? "●" : "○"}
+          </Text>
+        </Text>
+      </Box>
     </Box>
   );
 }

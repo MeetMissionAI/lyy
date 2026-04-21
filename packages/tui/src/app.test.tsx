@@ -137,10 +137,10 @@ describe("App list view", () => {
   it("refetches state on message:new event", async () => {
     let capturedHandler: ((event: string, payload: unknown) => void) | null =
       null;
-    const subscribeEvents = (
-      onEvent: (event: string, payload: unknown) => void,
-    ) => {
-      capturedHandler = onEvent;
+    const subscribeEvents = (cb: {
+      onEvent: (event: string, payload: unknown) => void;
+    }) => {
+      capturedHandler = cb.onEvent;
       return () => {};
     };
     const updatedState = {

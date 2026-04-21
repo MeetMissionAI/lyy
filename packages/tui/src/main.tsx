@@ -25,7 +25,7 @@ export async function main(): Promise<void> {
       fetchMessages={(id) => fetchThread(ipc, id)}
       onSend={(threadId, body) => sendMessage(ipc, threadId, body)}
       onSendToPeer={(name, body) => sendToPeer(ipc, name, body)}
-      subscribeEvents={(onEvent) => subscribe(onEvent)}
+      subscribeEvents={(cb) => subscribe(cb)}
       selfPeerId={identity.peerId}
     />,
   );

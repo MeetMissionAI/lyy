@@ -161,6 +161,10 @@ describe("McpIpcServer", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(responses).toEqual([{ id: 1, result: { ok: true } }]);
 
+    // Subscribe seeds presence (if provider wired) and relay:status; drain
+    // those so the rest of the assertion only sees the explicit push.
+    events.length = 0;
+
     server.pushToSubscribers("ping", { hello: 1 });
     await new Promise((r) => setTimeout(r, 50));
 

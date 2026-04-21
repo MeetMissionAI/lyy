@@ -43,6 +43,12 @@ type Response = { id: number; result: unknown } | { id: number; error: string };
 export class McpIpcServer {
   private server: Server | null = null;
   private readonly subscribers = new Set<Socket>();
+  private relayStatusProvider: () => boolean = () => false;
+
+  /** Wired by main.ts so subscribe() can seed the initial relay status. */
+  setRelayStatusProvider(fn: () => boolean): void {
+    this.relayStatusProvider = fn;
+  }
 
   constructor(
     private readonly deps: McpIpcServerDeps,
@@ -150,16 +156,22 @@ export class McpIpcServer {
         // kept open (subscribers don't get cleaned up on reply like normal
         // one-shot clients do — they just don't end their end).
         this.subscribers.add(socket);
-        // Seed the new subscriber with the current presence snapshot so it
-        // can paint online markers before the next delta arrives.
-        if (this.deps.presence) {
-          const frame = `${JSON.stringify({ type: "event", event: "presence", payload: { online: this.deps.presence.get() } })}\n`;
+        // Seed the new subscriber with the current presence snapshot and
+        // relay connection status so it can paint markers / status-bar
+        // before the next delta arrives.
+        const seed = (event: string, payload: unknown): void => {
           try {
-            socket.write(frame);
+            socket.write(
+              `${JSON.stringify({ type: "event", event, payload })}\n`,
+            );
           } catch {
             // ignore; subscriber will be GC'd on next push failure
           }
+        };
+        if (this.deps.presence) {
+          seed("presence", { online: this.deps.presence.get() });
         }
+        seed("relay:status", { connected: this.relayStatusProvider() });
         return { ok: true };
       }
       case "suggest_reply": {
