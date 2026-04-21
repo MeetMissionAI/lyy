@@ -30,8 +30,31 @@ export function attachSocket(
     }
   });
 
+  // Presence: per-peer active-socket count. A peer with 2 open sessions
+  // counts once. On connect: increment (broadcast if first); on disconnect:
+  // decrement (broadcast if last). Newly-connected sockets also receive the
+  // full online snapshot so they can render state before any deltas arrive.
+  const sessionCounts = new Map<string, number>();
+  const onlinePeers = () => [...sessionCounts.keys()];
+
   io.on("connection", (s) => {
-    s.emit("connected", { peerId: s.data.peerId as string });
+    const peerId = s.data.peerId as string;
+    s.emit("connected", { peerId });
+    const prev = sessionCounts.get(peerId) ?? 0;
+    sessionCounts.set(peerId, prev + 1);
+    s.emit("presence:snapshot", { online: onlinePeers() });
+    if (prev === 0) {
+      s.broadcast.emit("presence:change", { peerId, online: true });
+    }
+    s.on("disconnect", () => {
+      const cur = sessionCounts.get(peerId) ?? 1;
+      if (cur <= 1) {
+        sessionCounts.delete(peerId);
+        io.emit("presence:change", { peerId, online: false });
+      } else {
+        sessionCounts.set(peerId, cur - 1);
+      }
+    });
   });
 
   deps.broadcaster = (envelope: MessageEnvelope, recipients: string[]) => {

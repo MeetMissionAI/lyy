@@ -40,6 +40,7 @@ export {
   type McpIpcServerDeps,
 } from "./mcp-ipc.js";
 export { getLyyHome, lyyPath } from "./paths.js";
+export { PresenceStore } from "./presence.js";
 export { startDaemon, type DaemonHandles } from "./main.js";
 
 export const PACKAGE_NAME = "@lyy/daemon";

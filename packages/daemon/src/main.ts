@@ -2,6 +2,7 @@ import { loadIdentity } from "./identity.js";
 import { McpIpcServer } from "./mcp-ipc.js";
 import { PaneInbox } from "./pane-inbox.js";
 import { PaneRegistry } from "./pane-registry.js";
+import { PresenceStore } from "./presence.js";
 import { RelayClient } from "./relay-client.js";
 import { RelayHttp } from "./relay-http.js";
 import { MessageRouter } from "./router.js";
@@ -34,11 +35,27 @@ export async function startDaemon(): Promise<DaemonHandles> {
     jwt: identity.jwt,
   });
 
+  // Presence store mirrors relay's online set; attach to the relay client so
+  // snapshot + change deltas flow in. MCP IPC exposes it to readers.
+  const presence = new PresenceStore();
+  presence.attach(relayClient);
+
   // Construct the MCP IPC server first so we can wire its push bus into the
   // router's onIncomingMessage callback. mcp.start() only binds the Unix
   // socket — it doesn't wait on the relay — so ordering is safe.
-  const mcp = new McpIpcServer({ relayHttp, state, paneRegistry, paneInbox });
+  const mcp = new McpIpcServer({
+    relayHttp,
+    state,
+    paneRegistry,
+    paneInbox,
+    presence,
+  });
   await mcp.start();
+
+  // Fan presence changes out to TUI (and any other IPC subscriber).
+  presence.onChange((online) =>
+    mcp.pushToSubscribers("presence", { online }),
+  );
 
   const router = new MessageRouter({
     relay: relayClient,

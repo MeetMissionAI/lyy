@@ -1,7 +1,7 @@
 import { createConnection } from "node:net";
-import type { State } from "@lyy/daemon";
+import type { SendMessageResult, State } from "@lyy/daemon";
 import { DEFAULT_MCP_SOCK, McpIpcClient } from "@lyy/daemon";
-import type { Message } from "@lyy/shared";
+import type { Message, Peer } from "@lyy/shared";
 
 export function makeIpc(): McpIpcClient {
   return new McpIpcClient();
@@ -9,6 +9,11 @@ export function makeIpc(): McpIpcClient {
 
 export async function fetchState(ipc: McpIpcClient): Promise<State> {
   return ipc.call<State>("list_inbox");
+}
+
+export async function fetchPeers(ipc: McpIpcClient): Promise<Peer[]> {
+  const { peers } = await ipc.call<{ peers: Peer[] }>("list_peers");
+  return peers;
 }
 
 export async function fetchThread(
@@ -25,8 +30,16 @@ export async function sendMessage(
   ipc: McpIpcClient,
   threadId: string,
   body: string,
-): Promise<void> {
-  await ipc.call("send_message", { threadId, body });
+): Promise<SendMessageResult> {
+  return ipc.call<SendMessageResult>("send_message", { threadId, body });
+}
+
+export async function sendToPeer(
+  ipc: McpIpcClient,
+  toPeer: string,
+  body: string,
+): Promise<SendMessageResult> {
+  return ipc.call<SendMessageResult>("send_message", { toPeer, body });
 }
 
 export type EventHandler = (event: string, payload: unknown) => void;

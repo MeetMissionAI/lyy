@@ -49,6 +49,8 @@ export class RelayClient extends EventEmitter {
       "message:new",
       "message:read",
       "thread:archived",
+      "presence:snapshot",
+      "presence:change",
     ]) {
       this.socket.on(event, (payload: unknown) => this.emit(event, payload));
     }

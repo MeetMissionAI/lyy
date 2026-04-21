@@ -10,6 +10,7 @@ import { LYY_VERSION } from "@lyy/shared";
 import type { PaneInbox } from "./pane-inbox.js";
 import type { PaneRegistry } from "./pane-registry.js";
 import { lyyPath } from "./paths.js";
+import type { PresenceStore } from "./presence.js";
 import type { RelayHttp } from "./relay-http.js";
 import type { StateStore } from "./state.js";
 
@@ -20,6 +21,8 @@ export interface McpIpcServerDeps {
   state: StateStore;
   paneRegistry: PaneRegistry;
   paneInbox: PaneInbox;
+  /** Optional — when provided, list_peers decorates with `online` flag. */
+  presence?: PresenceStore;
 }
 
 interface Request {
@@ -147,6 +150,16 @@ export class McpIpcServer {
         // kept open (subscribers don't get cleaned up on reply like normal
         // one-shot clients do — they just don't end their end).
         this.subscribers.add(socket);
+        // Seed the new subscriber with the current presence snapshot so it
+        // can paint online markers before the next delta arrives.
+        if (this.deps.presence) {
+          const frame = `${JSON.stringify({ type: "event", event: "presence", payload: { online: this.deps.presence.get() } })}\n`;
+          try {
+            socket.write(frame);
+          } catch {
+            // ignore; subscriber will be GC'd on next push failure
+          }
+        }
         return { ok: true };
       }
       case "suggest_reply": {
@@ -220,7 +233,12 @@ export class McpIpcServer {
         return this.deps.relayHttp.listThreads(includeArchived);
       }
       case "list_peers": {
-        return this.deps.relayHttp.listPeers();
+        const { peers } = await this.deps.relayHttp.listPeers();
+        const presence = this.deps.presence;
+        if (!presence) return { peers };
+        return {
+          peers: peers.map((p) => ({ ...p, online: presence.has(p.id) })),
+        };
       }
       case "search": {
         const { q, limit } = params as { q: string; limit?: number };
