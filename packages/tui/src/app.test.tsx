@@ -1,6 +1,6 @@
 import { render } from "ink-testing-library";
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { App } from "./app.js";
 
 const fakeState = {
@@ -104,5 +104,51 @@ describe("App list view", () => {
     expect(
       (lastFrame() ?? "").split("\n").find((l) => l.includes("@alice")),
     ).toMatch(/▶/);
+  });
+
+  it("Enter on selected thread opens detail view", async () => {
+    const fetchMessages = vi.fn(async () => [
+      {
+        id: "m1",
+        threadId: "11111111-1111-4111-8111-111111111111",
+        fromPeer: "peer-alice",
+        body: "hi",
+        sentAt: "2026-04-21T10:00:00Z",
+        seq: 1,
+      },
+    ]);
+    const { stdin, lastFrame } = render(
+      <App
+        initialState={fakeState}
+        fetchMessages={fetchMessages}
+        selfPeerId="peer-self"
+      />,
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    stdin.write("\r"); // Enter
+    await new Promise((r) => setTimeout(r, 30));
+    expect(fetchMessages).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+    );
+    expect(lastFrame()).toContain("← #7 @alice");
+    expect(lastFrame()).toContain("alice: hi");
+  });
+
+  it("Esc in detail returns to list", async () => {
+    const { stdin, lastFrame } = render(
+      <App
+        initialState={fakeState}
+        fetchMessages={async () => []}
+        selfPeerId="peer-self"
+      />,
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    stdin.write("\r");
+    await new Promise((r) => setTimeout(r, 30));
+    stdin.write(""); // Esc (U+001B)
+    await new Promise((r) => setTimeout(r, 30));
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("📬");
+    expect(frame).not.toContain("← #7");
   });
 });
