@@ -53,9 +53,7 @@ export async function startDaemon(): Promise<DaemonHandles> {
   await mcp.start();
 
   // Fan presence changes out to TUI (and any other IPC subscriber).
-  presence.onChange((online) =>
-    mcp.pushToSubscribers("presence", { online }),
-  );
+  presence.onChange((online) => mcp.pushToSubscribers("presence", { online }));
 
   const router = new MessageRouter({
     relay: relayClient,

@@ -20,7 +20,10 @@ export interface AppProps {
   fetchState?: () => Promise<State>;
   fetchPeers?: () => Promise<Peer[]>;
   fetchMessages?: (threadId: string) => Promise<Message[]>;
-  onSend?: (threadId: string, body: string) => Promise<SendMessageResult | void>;
+  onSend?: (
+    threadId: string,
+    body: string,
+  ) => Promise<SendMessageResult | undefined>;
   onSendToPeer?: (peerName: string, body: string) => Promise<SendMessageResult>;
   subscribeEvents?: (onEvent: EventHandler) => () => void;
   selfPeerId?: string;
@@ -32,7 +35,7 @@ export function App({
   fetchState = async () => initialState,
   fetchPeers,
   fetchMessages = async () => [],
-  onSend = async () => {},
+  onSend = async () => undefined,
   onSendToPeer,
   subscribeEvents = () => () => {},
   selfPeerId = "",

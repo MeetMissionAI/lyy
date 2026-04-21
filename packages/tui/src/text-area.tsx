@@ -1,5 +1,6 @@
 import { Box, Text, useInput } from "ink";
-import React, { useRef, useState } from "react";
+import type React from "react";
+import { useRef, useState } from "react";
 
 /**
  * Multi-line TextInput for Ink, adapted from NousResearch/hermes-agent's
@@ -31,8 +32,12 @@ export interface TextAreaProps {
 // ── grapheme helpers ────────────────────────────────────────────────────────
 
 let _segmenter: Intl.Segmenter | null = null;
-const seg = () =>
-  (_segmenter ??= new Intl.Segmenter(undefined, { granularity: "grapheme" }));
+const seg = (): Intl.Segmenter => {
+  if (!_segmenter) {
+    _segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  }
+  return _segmenter;
+};
 
 const STOP_CACHE_MAX = 64;
 const stopCache = new Map<string, number[]>();
@@ -214,12 +219,12 @@ export function TextArea({
       // Enter: submit OR newline
       if (key.return) {
         if (key.shift || key.meta) {
-          commit(v.slice(0, c) + "\n" + v.slice(c), c + 1);
+          commit(`${v.slice(0, c)}\n${v.slice(c)}`, c + 1);
           return;
         }
         // Trailing `\` + Enter → replace `\` with newline (universal fallback).
         if (c > 0 && v[c - 1] === "\\") {
-          commit(v.slice(0, c - 1) + "\n" + v.slice(c), c);
+          commit(`${v.slice(0, c - 1)}\n${v.slice(c)}`, c);
           return;
         }
         void onSubmitRef.current(v);
@@ -305,10 +310,12 @@ export function TextArea({
       // delivers each keystroke separately for typed input; longer `input`
       // strings come from paste events and are handled the same way.
       if (input && input.length > 0) {
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: bracketed-paste markers start with ESC (\x1b); we strip them here explicitly.
+        const bracketedPaste = /\x1b\[20[01]~/g;
         const cleaned = input
           .replace(/\r\n/g, "\n")
           .replace(/\r/g, "\n")
-          .replace(/\x1b\[20[01]~/g, "");
+          .replace(bracketedPaste, "");
         if (!cleaned) return;
         commit(v.slice(0, c) + cleaned + v.slice(c), c + cleaned.length);
       }
