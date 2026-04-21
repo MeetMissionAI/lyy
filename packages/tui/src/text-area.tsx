@@ -1,5 +1,5 @@
 import { Box, Text, useInput } from "ink";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 
 export interface TextAreaProps {
   value: string;
@@ -33,77 +33,87 @@ export function TextArea({
   const [cursor, setCursor] = useState<Cursor>({ row: 0, col: 0 });
   const lines = value.length === 0 ? [""] : value.split("\n");
 
+  // Refs mirror latest state/props so the useInput handler — whose React
+  // closure may still hold a snapshot from an earlier render — always reads
+  // the freshest values. Without this, typing `\` then Enter races: the
+  // Enter handler closure captured `value` before `\` landed, saw no trailing
+  // backslash, and fell through to submit. Now we deref via ref.
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
+
   useInput(
     (input, key) => {
+      // Always read from refs so we see post-render state (avoids the race
+      // where typing `\` then Enter fires the Enter handler before React
+      // has flushed the setState from the `\` keystroke).
+      const curValue = valueRef.current;
+      const cur = cursorRef.current;
+      const curLines = curValue.length === 0 ? [""] : curValue.split("\n");
+
       if (key.return) {
-        // Primary newline path: Shift+Enter (works in terminals that propagate
-        // the shift modifier via CSI-u / kitty keyboard protocol).
         if (key.shift) {
-          insertText("\n");
+          insertText("\n", curLines, cur);
           return;
         }
-        // Fallback: trailing `\` + Enter. Most terminals don't distinguish
-        // Shift+Enter from plain Enter, so this gives a universal way to
-        // insert a newline — type `\`, then Enter. We strip the `\` and
-        // insert a newline in its place (atomic, single state update).
-        const curLine = lines[cursor.row] ?? "";
-        if (cursor.col > 0 && curLine[cursor.col - 1] === "\\") {
-          const head = lines.slice(0, cursor.row);
-          const tail = lines.slice(cursor.row + 1);
-          const before = curLine.slice(0, cursor.col - 1); // drop \
-          const after = curLine.slice(cursor.col);
+        // Fallback: trailing `\` + Enter. Replace the `\` with a newline.
+        const curLine = curLines[cur.row] ?? "";
+        if (cur.col > 0 && curLine[cur.col - 1] === "\\") {
+          const head = curLines.slice(0, cur.row);
+          const tail = curLines.slice(cur.row + 1);
+          const before = curLine.slice(0, cur.col - 1); // drop \
+          const after = curLine.slice(cur.col);
           const next = [...head, before, after, ...tail];
           onChange(next.join("\n"));
-          setCursor({ row: cursor.row + 1, col: 0 });
+          setCursor({ row: cur.row + 1, col: 0 });
           return;
         }
-        void onSubmit(value);
+        void onSubmit(curValue);
         return;
       }
 
       if (key.escape) {
-        // don't consume; let parent handle (e.g. exit thread view)
         return;
       }
 
       if (key.leftArrow) {
-        moveLeft();
+        moveLeft(curLines, cur);
         return;
       }
       if (key.rightArrow) {
-        moveRight();
+        moveRight(curLines, cur);
         return;
       }
       if (key.upArrow) {
-        moveUp();
+        moveUp(curLines, cur);
         return;
       }
       if (key.downArrow) {
-        moveDown();
+        moveDown(curLines, cur);
         return;
       }
 
       if (key.backspace || key.delete) {
-        deleteBackward();
+        deleteBackward(curLines, cur);
         return;
       }
 
       if (input && input.length > 0) {
-        insertText(input);
+        insertText(input, curLines, cur);
       }
     },
     { isActive },
   );
 
-  function insertText(text: string): void {
-    // Text may contain \n from paste or Shift+Tab. Insert line by line.
+  function insertText(text: string, curLines: string[], cur: Cursor): void {
     const chunks = text.split("\n");
-    const head = lines.slice(0, cursor.row);
-    const current = lines[cursor.row] ?? "";
-    const tail = lines.slice(cursor.row + 1);
+    const head = curLines.slice(0, cur.row);
+    const current = curLines[cur.row] ?? "";
+    const tail = curLines.slice(cur.row + 1);
 
-    const before = current.slice(0, cursor.col);
-    const after = current.slice(cursor.col);
+    const before = current.slice(0, cur.col);
+    const after = current.slice(cur.col);
 
     let newLines: string[];
     let newRow: number;
@@ -111,73 +121,73 @@ export function TextArea({
 
     if (chunks.length === 1) {
       newLines = [...head, before + chunks[0] + after, ...tail];
-      newRow = cursor.row;
-      newCol = cursor.col + chunks[0].length;
+      newRow = cur.row;
+      newCol = cur.col + chunks[0].length;
     } else {
       const first = before + chunks[0];
       const last = chunks[chunks.length - 1] + after;
       const middle = chunks.slice(1, -1);
       newLines = [...head, first, ...middle, last, ...tail];
-      newRow = cursor.row + chunks.length - 1;
+      newRow = cur.row + chunks.length - 1;
       newCol = chunks[chunks.length - 1].length;
     }
     onChange(newLines.join("\n"));
     setCursor({ row: newRow, col: newCol });
   }
 
-  function deleteBackward(): void {
-    if (cursor.col > 0) {
-      const line = lines[cursor.row] ?? "";
-      const newLine = line.slice(0, cursor.col - 1) + line.slice(cursor.col);
-      const next = [...lines];
-      next[cursor.row] = newLine;
+  function deleteBackward(curLines: string[], cur: Cursor): void {
+    if (cur.col > 0) {
+      const line = curLines[cur.row] ?? "";
+      const newLine = line.slice(0, cur.col - 1) + line.slice(cur.col);
+      const next = [...curLines];
+      next[cur.row] = newLine;
       onChange(next.join("\n"));
-      setCursor({ row: cursor.row, col: cursor.col - 1 });
+      setCursor({ row: cur.row, col: cur.col - 1 });
       return;
     }
-    if (cursor.row > 0) {
-      const prev = lines[cursor.row - 1] ?? "";
-      const curr = lines[cursor.row] ?? "";
+    if (cur.row > 0) {
+      const prev = curLines[cur.row - 1] ?? "";
+      const curr = curLines[cur.row] ?? "";
       const merged = prev + curr;
-      const next = [...lines];
-      next.splice(cursor.row - 1, 2, merged);
+      const next = [...curLines];
+      next.splice(cur.row - 1, 2, merged);
       onChange(next.join("\n"));
-      setCursor({ row: cursor.row - 1, col: prev.length });
+      setCursor({ row: cur.row - 1, col: prev.length });
     }
   }
 
-  function moveLeft(): void {
-    if (cursor.col > 0) {
-      setCursor({ row: cursor.row, col: cursor.col - 1 });
+  function moveLeft(curLines: string[], cur: Cursor): void {
+    if (cur.col > 0) {
+      setCursor({ row: cur.row, col: cur.col - 1 });
       return;
     }
-    if (cursor.row > 0) {
-      const prev = lines[cursor.row - 1] ?? "";
-      setCursor({ row: cursor.row - 1, col: prev.length });
+    if (cur.row > 0) {
+      const prev = curLines[cur.row - 1] ?? "";
+      setCursor({ row: cur.row - 1, col: prev.length });
     }
   }
 
-  function moveRight(): void {
-    const line = lines[cursor.row] ?? "";
-    if (cursor.col < line.length) {
-      setCursor({ row: cursor.row, col: cursor.col + 1 });
+  function moveRight(curLines: string[], cur: Cursor): void {
+    const line = curLines[cur.row] ?? "";
+    if (cur.col < line.length) {
+      setCursor({ row: cur.row, col: cur.col + 1 });
       return;
     }
-    if (cursor.row < lines.length - 1) {
-      setCursor({ row: cursor.row + 1, col: 0 });
+    if (cur.row < curLines.length - 1) {
+      setCursor({ row: cur.row + 1, col: 0 });
     }
   }
 
-  function moveUp(): void {
-    if (cursor.row === 0) return;
-    const prev = lines[cursor.row - 1] ?? "";
-    setCursor({ row: cursor.row - 1, col: Math.min(cursor.col, prev.length) });
+  function moveUp(curLines: string[], cur: Cursor): void {
+    if (cur.row === 0) return;
+    const prev = curLines[cur.row - 1] ?? "";
+    setCursor({ row: cur.row - 1, col: Math.min(cur.col, prev.length) });
   }
 
-  function moveDown(): void {
-    if (cursor.row >= lines.length - 1) return;
-    const next = lines[cursor.row + 1] ?? "";
-    setCursor({ row: cursor.row + 1, col: Math.min(cursor.col, next.length) });
+  function moveDown(curLines: string[], cur: Cursor): void {
+    if (cur.row >= curLines.length - 1) return;
+    const next = curLines[cur.row + 1] ?? "";
+    setCursor({ row: cur.row + 1, col: Math.min(cur.col, next.length) });
   }
 
   if (value.length === 0 && placeholder) {
