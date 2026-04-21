@@ -8,6 +8,7 @@ import { replyTool } from "./reply.js";
 import { searchTool } from "./search.js";
 import { sendToTool } from "./send-to.js";
 import { spawnThreadTool } from "./spawn-thread.js";
+import { suggestReplyTool } from "./suggest-reply.js";
 
 export interface ToolContext {
   ipc: McpIpcClient;
@@ -44,4 +45,5 @@ export const allTools: LyyTool[] = [
   archiveThreadTool,
   unarchiveThreadTool,
   searchTool,
+  suggestReplyTool,
 ];

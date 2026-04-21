@@ -77,6 +77,7 @@ describe("buildMcpServer (main mode)", () => {
     expect(names).toContain("unarchive_thread");
     expect(names).toContain("search");
     expect(names).toContain("spawn_thread");
+    expect(names).toContain("suggest_reply");
     expect(names).not.toContain("reply");
   });
 
@@ -143,6 +144,25 @@ describe("buildMcpServer (main mode)", () => {
       peers: { name: string }[];
     };
     expect(parsed.peers[0].name).toBe("Alice");
+  });
+
+  it("suggest_reply tool calls ipc 'suggest_reply' with threadId + body", async () => {
+    const ipc = fakeIpc({
+      suggest_reply: vi.fn(async () => ({ ok: true })),
+    });
+    const { server } = buildMcpServer({
+      ipcClient: ipc,
+      mode: { kind: "main" },
+    });
+    const res = (await callTool(server, "suggest_reply", {
+      thread_id: "t1",
+      body: "hello",
+    })) as { content: { text: string }[] };
+    expect(ipc.call).toHaveBeenCalledWith("suggest_reply", {
+      threadId: "t1",
+      body: "hello",
+    });
+    expect(JSON.parse(res.content[0].text)).toEqual({ ok: true });
   });
 
   it("calling 'reply' in main mode throws (tool not enabled)", async () => {
