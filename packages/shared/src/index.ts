@@ -13,6 +13,7 @@ export {
   createPeer,
   findPeerByEmail,
   findPeerByName,
+  findPeersByIds,
   listPeers,
   type CreatePeerInput,
 } from "./repo/peers.js";

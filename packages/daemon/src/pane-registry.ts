@@ -79,6 +79,29 @@ export class PaneRegistry {
     return this.map.get(threadShortId) ?? null;
   }
 
+  /**
+   * Register `threadShortId -> paneId`. First-write wins: if the thread
+   * already has a pane bound, returns `{ ok: false, existingPaneId }`
+   * without overwriting. Callers (IPC / MCP tool) surface this conflict
+   * back to the user so a second `/pickup` from another lyy window fails
+   * loudly instead of silently stealing the binding.
+   */
+  register(
+    threadShortId: number,
+    paneId: string,
+  ): { ok: true } | { ok: false; existingPaneId: string } {
+    const existing = this.map.get(threadShortId);
+    if (existing !== undefined) {
+      return { ok: false, existingPaneId: existing };
+    }
+    this.map.set(threadShortId, paneId);
+    return { ok: true };
+  }
+
+  unregister(threadShortId: number): void {
+    this.map.delete(threadShortId);
+  }
+
   size(): number {
     return this.map.size;
   }
@@ -111,11 +134,10 @@ export class PaneRegistry {
     let response: unknown;
     switch (op.op) {
       case "register":
-        this.map.set(op.threadShortId, op.paneId);
-        response = { ok: true };
+        response = this.register(op.threadShortId, op.paneId);
         break;
       case "unregister":
-        this.map.delete(op.threadShortId);
+        this.unregister(op.threadShortId);
         response = { ok: true };
         break;
       case "query":
@@ -132,8 +154,19 @@ export class PaneRegistry {
 export class PaneRegistryClient {
   constructor(private readonly sockPath: string = DEFAULT_PANE_REGISTRY_SOCK) {}
 
-  async register(threadShortId: number, paneId: string): Promise<void> {
-    await this.call({ op: "register", threadShortId, paneId });
+  /**
+   * Returns `{ ok: true }` when the binding was created, or
+   * `{ ok: false, existingPaneId }` when another pane already owns the
+   * thread. Callers should surface the conflict as a user-visible error.
+   */
+  async register(
+    threadShortId: number,
+    paneId: string,
+  ): Promise<{ ok: true } | { ok: false; existingPaneId: string }> {
+    const r = (await this.call({ op: "register", threadShortId, paneId })) as
+      | { ok: true }
+      | { ok: false; existingPaneId: string };
+    return r;
   }
 
   async unregister(threadShortId: number): Promise<void> {

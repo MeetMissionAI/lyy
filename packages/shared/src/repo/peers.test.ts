@@ -4,6 +4,7 @@ import {
   createPeer,
   findPeerByEmail,
   findPeerByName,
+  findPeersByIds,
   listPeers,
 } from "./peers.js";
 
@@ -84,5 +85,31 @@ describe.skipIf(skip)("peers repo", () => {
         email: `${TEST_PREFIX}dup2@x.com`,
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe.skipIf(skip)("findPeersByIds", () => {
+  it("returns matching non-disabled peers when given multiple IDs", async () => {
+    const p1 = await createPeer(db, {
+      name: `${TEST_PREFIX}batch1`,
+      email: `${TEST_PREFIX}batch1@x.com`,
+    });
+    const p2 = await createPeer(db, {
+      name: `${TEST_PREFIX}batch2`,
+      email: `${TEST_PREFIX}batch2@x.com`,
+    });
+    await createPeer(db, {
+      name: `${TEST_PREFIX}batch3`,
+      email: `${TEST_PREFIX}batch3@x.com`,
+    });
+
+    const found = await findPeersByIds(db, [p1.id, p2.id]);
+    const names = found.map((p) => p.name).sort();
+    expect(names).toEqual([`${TEST_PREFIX}batch1`, `${TEST_PREFIX}batch2`]);
+  });
+
+  it("returns empty array for empty input", async () => {
+    const found = await findPeersByIds(db, []);
+    expect(found).toEqual([]);
   });
 });

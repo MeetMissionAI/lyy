@@ -5,6 +5,7 @@ import { PaneRegistry } from "./pane-registry.js";
 import { RelayClient } from "./relay-client.js";
 import { RelayHttp } from "./relay-http.js";
 import { MessageRouter } from "./router.js";
+import { syncStateFromRelay } from "./state-sync.js";
 import { StateStore } from "./state.js";
 
 export interface DaemonHandles {
@@ -45,9 +46,20 @@ export async function startDaemon(): Promise<DaemonHandles> {
   const mcp = new McpIpcServer({ relayHttp, state, paneRegistry, paneInbox });
   await mcp.start();
 
-  relayClient.on("connected", () =>
-    console.log("[lyy-daemon] relay connected"),
-  );
+  relayClient.on("connected", async () => {
+    console.log("[lyy-daemon] relay connected");
+    try {
+      await syncStateFromRelay({
+        relayHttp,
+        state,
+        paneInbox,
+        selfPeerId: identity.peerId,
+      });
+      console.log("[lyy-daemon] state sync complete");
+    } catch (err) {
+      console.log(`[lyy-daemon] state sync failed: ${(err as Error).message}`);
+    }
+  });
   relayClient.on("disconnected", (reason) =>
     console.log(`[lyy-daemon] relay disconnected: ${reason}`),
   );

@@ -14,13 +14,15 @@ import { DEFAULT_MCP_SOCK } from "@lyy/daemon";
 import { which } from "../util/which.js";
 
 /**
- * Session/tab name derived from LYY_HOME basename so multiple profiles
- * (e.g. ~/.lyy, ~/.lyy/profiles/alice) get distinct zellij sessions.
- * Strip leading dot so default `~/.lyy` → `lyy`, not `.lyy`.
+ * Session/tab name derived from LYY_HOME basename + current PID so each
+ * `lyy` invocation gets a unique zellij session even when multiple instances
+ * run under the same profile. E.g. `~/.lyy/profiles/alice` + pid 12345
+ * → `alice-12345`. Strip leading dot so default `~/.lyy` → `lyy-<pid>`.
  */
 function sessionName(): string {
   const home = process.env.LYY_HOME ?? resolvePath(homedir(), ".lyy");
-  return basename(home).replace(/^\./, "") || "lyy";
+  const base = basename(home).replace(/^\./, "") || "lyy";
+  return `${base}-${process.pid}`;
 }
 
 function zellijLayout(name: string): string {
@@ -61,9 +63,6 @@ export async function runDefault(): Promise<void> {
   }
 
   const session = sessionName();
-  spawnSync(zellij, ["delete-session", session, "--force"], {
-    stdio: "ignore",
-  });
 
   const dir = mkdtempSync(join(tmpdir(), "lyy-layout-"));
   writeFileSync(join(dir, "main.kdl"), zellijLayout(session));

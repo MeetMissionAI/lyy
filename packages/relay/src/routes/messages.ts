@@ -4,6 +4,7 @@ import {
   createThread,
   findActiveThread,
   findPeerByName,
+  findPeersByIds,
   getThreadById,
   insertMessage,
 } from "@lyy/shared";
@@ -84,12 +85,36 @@ export async function messagesRoute(
       }
 
       if (deps.broadcaster) {
-        Promise.resolve(
-          deps.broadcaster(
-            { message: result.message, threadShortId: result.thread.shortId },
+        // Enrich envelope with thread + peer metadata so receivers can upsert their
+        // local state cache for unknown threads (avoid a separate /threads round-trip).
+        const broadcast = deps.broadcaster;
+        const broadcastPromise = (async () => {
+          const peers = await findPeersByIds(
+            deps.db,
+            result.thread.participants,
+          );
+          return broadcast(
+            {
+              message: result.message,
+              threadShortId: result.thread.shortId,
+              thread: {
+                id: result.thread.id,
+                shortId: result.thread.shortId,
+                title: result.thread.title ?? null,
+                participants: result.thread.participants,
+              },
+              peers: peers.map((p) => ({
+                id: p.id,
+                name: p.name,
+                ...(p.displayName ? { displayName: p.displayName } : {}),
+              })),
+            },
             result.recipients,
-          ),
-        ).catch((err) => req.log.error({ err }, "broadcaster failed"));
+          );
+        })();
+        broadcastPromise.catch((err) =>
+          req.log.error({ err }, "broadcaster failed"),
+        );
       }
 
       return reply.code(201).send({

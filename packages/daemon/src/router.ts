@@ -4,9 +4,25 @@ import type { PaneRegistry } from "./pane-registry.js";
 import type { RelayClient } from "./relay-client.js";
 import type { StateStore, ThreadSummary } from "./state.js";
 
+// NOTE: keep in sync with packages/relay/src/server.ts EnvelopePeer/Thread/MessageEnvelope
+export interface EnvelopePeer {
+  id: string;
+  name: string;
+  displayName?: string;
+}
+
+export interface EnvelopeThread {
+  id: string;
+  shortId: number;
+  title: string | null;
+  participants: string[];
+}
+
 export interface MessageEnvelope {
   message: Message;
-  threadShortId: number;
+  threadShortId: number; // backward compat — keep
+  thread?: EnvelopeThread;
+  peers?: EnvelopePeer[];
 }
 
 export interface RouterDeps {
@@ -55,7 +71,9 @@ export class MessageRouter {
     const paneOpen =
       !isFromSelf && this.deps.paneRegistry.findPane(threadShortId) !== null;
 
-    if (paneOpen) {
+    // Always accumulate in paneInbox unless we sent this ourselves. SessionStart
+    // hook drains the file on /pickup so offline-accumulated messages surface.
+    if (!isFromSelf) {
       await this.deps.paneInbox.append(threadShortId, message);
     }
 
@@ -70,23 +88,45 @@ export class MessageRouter {
 
       let threads = s.threads;
       const idx = threads.findIndex((t) => t.threadId === message.threadId);
+      const previewLen = this.deps.previewLen ?? DEFAULT_PREVIEW_LEN;
+
       if (idx >= 0) {
         const existing = threads[idx];
         const updated: ThreadSummary = {
           ...existing,
           paneOpen,
-          lastBody: message.body.slice(
-            0,
-            this.deps.previewLen ?? DEFAULT_PREVIEW_LEN,
-          ),
+          lastBody: message.body.slice(0, previewLen),
           lastMessageAt: message.sentAt,
           unread:
             isFromSelf || paneOpen ? existing.unread : existing.unread + 1,
         };
         threads = [...threads];
         threads[idx] = updated;
+      } else if (env.thread && env.peers) {
+        const otherId = env.thread.participants.find(
+          (p) => p !== this.deps.selfPeerId,
+        );
+        const peerName = otherId
+          ? (env.peers.find((p) => p.id === otherId)?.name ?? "?")
+          : "?";
+        threads = [
+          ...threads,
+          {
+            threadId: env.thread.id,
+            shortId: env.thread.shortId,
+            peerName,
+            lastBody: message.body.slice(0, previewLen),
+            lastMessageAt: message.sentAt,
+            unread: isFromSelf || paneOpen ? 0 : 1,
+            archived: false,
+            paneOpen,
+          },
+        ];
+      } else {
+        console.error(
+          `[lyy-daemon] message:new for unknown thread ${message.threadId}; envelope missing thread/peers metadata (old relay?)`,
+        );
       }
-      // No-summary case: leave threads alone; daemon's /threads sync rehydrates later
 
       const unreadCount = threads.reduce(
         (sum, t) => sum + (t.archived ? 0 : t.unread),
