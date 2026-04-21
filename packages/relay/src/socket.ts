@@ -5,6 +5,11 @@ import type { MessageEnvelope, ServerDeps } from "./server.js";
 
 export const PEER_ROOM = (peerId: string) => `peer:${peerId}`;
 
+// Exported so the HTTP layer can expose a /presence route and tests can
+// inspect the live set. Populated only after attachSocket runs.
+export const onlinePeerSessions = new Map<string, number>();
+export const onlinePeerIds = (): string[] => [...onlinePeerSessions.keys()];
+
 /**
  * Attach Socket.IO to a Fastify HTTP server. Mutates deps.broadcaster
  * so that POST /messages pushes "message:new" events to recipients'
@@ -34,26 +39,29 @@ export function attachSocket(
   // counts once. On connect: increment (broadcast if first); on disconnect:
   // decrement (broadcast if last). Newly-connected sockets also receive the
   // full online snapshot so they can render state before any deltas arrive.
-  const sessionCounts = new Map<string, number>();
-  const onlinePeers = () => [...sessionCounts.keys()];
-
   io.on("connection", (s) => {
     const peerId = s.data.peerId as string;
     s.emit("connected", { peerId });
-    const prev = sessionCounts.get(peerId) ?? 0;
-    sessionCounts.set(peerId, prev + 1);
-    s.emit("presence:snapshot", { online: onlinePeers() });
+    const prev = onlinePeerSessions.get(peerId) ?? 0;
+    onlinePeerSessions.set(peerId, prev + 1);
+    console.log(
+      `[presence] connect peer=${peerId} sid=${s.id} sessions=${prev + 1} total_online=${onlinePeerSessions.size}`,
+    );
+    s.emit("presence:snapshot", { online: onlinePeerIds() });
     if (prev === 0) {
       s.broadcast.emit("presence:change", { peerId, online: true });
     }
-    s.on("disconnect", () => {
-      const cur = sessionCounts.get(peerId) ?? 1;
+    s.on("disconnect", (reason) => {
+      const cur = onlinePeerSessions.get(peerId) ?? 1;
       if (cur <= 1) {
-        sessionCounts.delete(peerId);
+        onlinePeerSessions.delete(peerId);
         io.emit("presence:change", { peerId, online: false });
       } else {
-        sessionCounts.set(peerId, cur - 1);
+        onlinePeerSessions.set(peerId, cur - 1);
       }
+      console.log(
+        `[presence] disconnect peer=${peerId} sid=${s.id} reason=${reason} sessions=${Math.max(cur - 1, 0)} total_online=${onlinePeerSessions.size}`,
+      );
     });
   });
 

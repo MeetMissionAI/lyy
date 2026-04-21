@@ -5,6 +5,7 @@ import { inboxRoutes } from "./routes/inbox.js";
 import { messagesRoute } from "./routes/messages.js";
 import { pairRoute } from "./routes/pair.js";
 import { peersRoute } from "./routes/peers.js";
+import { presenceRoute } from "./routes/presence.js";
 
 export type { MessageEnvelope };
 
@@ -39,6 +40,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   await messagesRoute(app, deps);
   await inboxRoutes(app, deps);
   await peersRoute(app, deps);
+  await presenceRoute(app);
 
   return app;
 }
