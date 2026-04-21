@@ -34,17 +34,21 @@ export async function startDaemon(): Promise<DaemonHandles> {
     jwt: identity.jwt,
   });
 
+  // Construct the MCP IPC server first so we can wire its push bus into the
+  // router's onIncomingMessage callback. mcp.start() only binds the Unix
+  // socket — it doesn't wait on the relay — so ordering is safe.
+  const mcp = new McpIpcServer({ relayHttp, state, paneRegistry, paneInbox });
+  await mcp.start();
+
   const router = new MessageRouter({
     relay: relayClient,
     paneRegistry,
     paneInbox,
     state,
     selfPeerId: identity.peerId,
+    onIncomingMessage: (env) => mcp.pushToSubscribers("message:new", env),
   });
   router.start();
-
-  const mcp = new McpIpcServer({ relayHttp, state, paneRegistry, paneInbox });
-  await mcp.start();
 
   relayClient.on("connected", async () => {
     console.log("[lyy-daemon] relay connected");

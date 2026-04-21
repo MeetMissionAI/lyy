@@ -1,0 +1,88 @@
+import type { Message } from "@lyy/shared";
+import { Box, Text, useInput } from "ink";
+import TextInput from "ink-text-input";
+import React, { useState } from "react";
+
+export interface ThreadViewProps {
+  thread: { threadId: string; shortId: number; peerName: string };
+  messages: Message[];
+  selfPeerId: string;
+  onSend: (body: string) => Promise<void> | void;
+  onInjectClaude?: (question: string) => Promise<void> | void;
+  suggestion?: string;
+  onDismissSuggestion?: () => void;
+}
+
+export function ThreadView({
+  thread,
+  messages,
+  selfPeerId,
+  onSend,
+  onInjectClaude,
+  suggestion,
+  onDismissSuggestion,
+}: ThreadViewProps) {
+  const [draft, setDraft] = useState("");
+
+  useInput(
+    (_input, key) => {
+      if (!suggestion) return;
+      if (key.tab) {
+        setDraft(suggestion);
+        onDismissSuggestion?.();
+      } else if (key.escape) {
+        onDismissSuggestion?.();
+      }
+    },
+    { isActive: Boolean(suggestion) },
+  );
+
+  const handleSubmit = async (value: string) => {
+    const body = value.trim();
+    if (!body) return;
+    try {
+      if (body.startsWith("@Claude ") && onInjectClaude) {
+        const question = body.slice("@Claude ".length);
+        await onInjectClaude(question);
+      } else {
+        await onSend(body);
+      }
+      setDraft("");
+    } catch (err) {
+      // Keep draft so user can retry; surface error on stderr for debugging.
+      console.error("[lyy-tui] send/inject failed:", err);
+    }
+  };
+
+  return (
+    <Box flexDirection="column">
+      <Text bold>
+        ← #{thread.shortId} @{thread.peerName}
+      </Text>
+      {messages.map((m) => {
+        const who = m.fromPeer === selfPeerId ? "me" : thread.peerName;
+        const time = m.sentAt.slice(11, 16);
+        return (
+          <Text key={m.id}>
+            [{time}] {who}: {m.body}
+          </Text>
+        );
+      })}
+      {suggestion && (
+        <Box
+          flexDirection="column"
+          marginTop={1}
+          borderStyle="round"
+          borderColor="cyan"
+        >
+          <Text color="cyan">💡 Claude: {suggestion}</Text>
+          <Text dimColor>[Tab: accept · Esc: dismiss]</Text>
+        </Box>
+      )}
+      <Box marginTop={1}>
+        <Text>&gt; </Text>
+        <TextInput value={draft} onChange={setDraft} onSubmit={handleSubmit} />
+      </Box>
+    </Box>
+  );
+}

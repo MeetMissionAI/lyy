@@ -38,6 +38,7 @@ type Response = { id: number; result: unknown } | { id: number; error: string };
  */
 export class McpIpcServer {
   private server: Server | null = null;
+  private readonly subscribers = new Set<Socket>();
 
   constructor(
     private readonly deps: McpIpcServerDeps,
@@ -45,6 +46,21 @@ export class McpIpcServer {
   ) {
     const dir = dirname(this.sockPath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  }
+
+  /**
+   * Fan out a server-push frame to every subscribed socket. Subscribers
+   * are sockets that previously called the `subscribe` IPC method.
+   */
+  pushToSubscribers(event: string, payload: unknown): void {
+    const frame = `${JSON.stringify({ type: "event", event, payload })}\n`;
+    for (const s of this.subscribers) {
+      try {
+        s.write(frame);
+      } catch {
+        this.subscribers.delete(s);
+      }
+    }
   }
 
   async start(): Promise<void> {
@@ -87,16 +103,19 @@ export class McpIpcServer {
         const line = buffer.slice(0, nl);
         buffer = buffer.slice(nl + 1);
         if (line.trim()) {
-          const reply = await this.dispatch(line);
+          const reply = await this.dispatch(line, socket);
           socket.write(`${JSON.stringify(reply)}\n`);
         }
         nl = buffer.indexOf("\n");
       }
     });
     socket.on("error", () => undefined);
+    socket.on("close", () => {
+      this.subscribers.delete(socket);
+    });
   }
 
-  private async dispatch(line: string): Promise<Response> {
+  private async dispatch(line: string, socket: Socket): Promise<Response> {
     let req: Request;
     try {
       req = JSON.parse(line) as Request;
@@ -104,7 +123,7 @@ export class McpIpcServer {
       return { id: -1, error: "invalid json" };
     }
     try {
-      const result = await this.invoke(req.method, req.params ?? {});
+      const result = await this.invoke(req.method, req.params ?? {}, socket);
       return { id: req.id, result };
     } catch (err) {
       return {
@@ -117,8 +136,24 @@ export class McpIpcServer {
   private async invoke(
     method: string,
     params: Record<string, unknown>,
+    socket: Socket,
   ): Promise<unknown> {
     switch (method) {
+      case "subscribe": {
+        // Register the calling socket as an event listener. The socket is
+        // kept open (subscribers don't get cleaned up on reply like normal
+        // one-shot clients do — they just don't end their end).
+        this.subscribers.add(socket);
+        return { ok: true };
+      }
+      case "suggest_reply": {
+        const { threadId, body } = params as {
+          threadId: string;
+          body: string;
+        };
+        this.pushToSubscribers("suggest_reply", { threadId, body });
+        return { ok: true };
+      }
       case "send_message": {
         const { toPeer, threadId, body, forceNew } = params as {
           toPeer?: string;
