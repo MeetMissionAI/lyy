@@ -5,6 +5,8 @@ teammate something without tying up your own session, and let their Claude
 draft the reply in an isolated thread. Conversations persist across days and
 never pollute either main session's context.
 
+*中文版本：[README_zh.md](./README_zh.md)*
+
 ---
 
 ## Table of contents
