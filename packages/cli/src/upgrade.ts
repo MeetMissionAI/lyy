@@ -122,9 +122,8 @@ export function verifySha256(data: Buffer, expectedHex: string): boolean {
  */
 export function swapRuntime(staging: string, runtime: string): void {
   const backup = `${runtime}-old`;
-  if (existsSync(backup)) {
-    rmSync(backup, { recursive: true, force: true });
-  }
+  // `force: true` tolerates a missing backup dir — no existsSync needed.
+  rmSync(backup, { recursive: true, force: true });
   if (existsSync(runtime)) {
     renameSync(runtime, backup);
   }
@@ -146,49 +145,73 @@ function pinShebang(binPath: string, nodeBin: string): void {
  * launches MCP servers with a trimmed PATH) can still spawn them. Throws on
  * any failure so the caller can abort the upgrade and keep the old runtime.
  */
+const TARBALL_TIMEOUT_MS = 60_000;
+
+async function fetchBuffer(url: string, timeoutMs: number): Promise<Buffer> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ac.signal });
+    if (!res.ok) throw new Error(`fetch ${url}: ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function downloadAndExtract(args: {
   baseUrl: string;
-  pkgs: string[]; // e.g. ["cli", "daemon", "mcp", "tui"]
+  pkgs: readonly string[];
   manifest: Map<string, string>;
   stagingDir: string;
   nodeBin: string;
 }): Promise<void> {
   mkdirSync(args.stagingDir, { recursive: true });
-  for (const pkg of args.pkgs) {
-    const filename = `lyy-${pkg}.tgz`;
-    const expected = args.manifest.get(filename);
-    if (!expected) throw new Error(`missing sha for ${filename} in manifest`);
+  // Parallel: the 4 tarballs are independent. Sequential adds ~3x the wall
+  // time on slow networks, serialized behind network RTT not CPU. tar
+  // extraction stays synchronous inside each task — fine for ~1-5MB tarballs.
+  await Promise.all(
+    args.pkgs.map(async (pkg) => {
+      const filename = `lyy-${pkg}.tgz`;
+      const expected = args.manifest.get(filename);
+      if (!expected) throw new Error(`missing sha for ${filename} in manifest`);
 
-    const res = await fetch(`${args.baseUrl}/${filename}`);
-    if (!res.ok) throw new Error(`fetch ${filename}: ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (!verifySha256(buf, expected)) {
-      throw new Error(`sha256 mismatch for ${filename}`);
-    }
+      const buf = await fetchBuffer(
+        `${args.baseUrl}/${filename}`,
+        TARBALL_TIMEOUT_MS,
+      );
+      if (!verifySha256(buf, expected)) {
+        throw new Error(`sha256 mismatch for ${filename}`);
+      }
 
-    const pkgDir = pathJoin(args.stagingDir, pkg);
-    mkdirSync(pkgDir, { recursive: true });
-    const tarPath = pathJoin(args.stagingDir, filename);
-    writeFileSync(tarPath, buf);
-    execFileSync("tar", ["-xzf", tarPath, "-C", pkgDir]);
-    rmSync(tarPath);
-  }
+      const pkgDir = pathJoin(args.stagingDir, pkg);
+      mkdirSync(pkgDir, { recursive: true });
+      const tarPath = pathJoin(args.stagingDir, filename);
+      writeFileSync(tarPath, buf);
+      execFileSync("tar", ["-xzf", tarPath, "-C", pkgDir]);
+      rmSync(tarPath);
+    }),
+  );
 
-  // Pin shebangs for the four known binaries.
+  // Pin shebangs + validate every required bin is present. A malformed
+  // tarball that sha-matched but is missing a bin must abort the upgrade
+  // here — promoting a broken runtime would leave the user's `lyy` stuck
+  // with ENOENT on re-exec.
   for (const [pkg, rel] of REQUIRED_BINS) {
     const p = pathJoin(args.stagingDir, pkg, rel);
-    if (existsSync(p)) pinShebang(p, args.nodeBin);
+    if (!existsSync(p)) {
+      throw new Error(`missing ${pkg}/${rel} after extract`);
+    }
+    pinShebang(p, args.nodeBin);
   }
 }
 
 const REPO = "MeetMissionAI/lyy";
-const PKGS = ["cli", "daemon", "mcp", "tui"];
 
 /**
  * The bins every release tarball must ship. Used both to pin shebangs after
- * extract and to validate the staging layout before we swap the runtime. If a
- * tarball is malformed (missing a bin), we abort the upgrade and keep the old
- * runtime rather than promote a broken one and die on re-exec with ENOENT.
+ * extract and to validate the staging layout. `PKGS` is derived from this
+ * list so the package set has one source of truth.
  */
 const REQUIRED_BINS = [
   ["cli", "bin/lyy"],
@@ -196,6 +219,8 @@ const REQUIRED_BINS = [
   ["mcp", "bin/lyy-mcp"],
   ["tui", "bin/lyy-tui"],
 ] as const;
+
+const PKGS: readonly string[] = REQUIRED_BINS.map(([pkg]) => pkg);
 
 export interface AutoUpgradeDeps {
   /**
@@ -271,15 +296,14 @@ export async function autoUpgrade(deps: AutoUpgradeDeps): Promise<void> {
   let swapped = false;
   try {
     const baseUrl = `https://github.com/${REPO}/releases/download/${tag}`;
-    const manifestRes = await fetch(`${baseUrl}/SHA256SUMS.txt`);
-    if (!manifestRes.ok) {
-      throw new Error(`SHA256SUMS.txt: ${manifestRes.status}`);
-    }
-    const manifest = parseSha256Manifest(await manifestRes.text());
+    const manifestBuf = await fetchBuffer(`${baseUrl}/SHA256SUMS.txt`, 10_000);
+    const manifest = parseSha256Manifest(manifestBuf.toString("utf8"));
     // Use the same node that's running us, rather than whatever `node` is on
     // PATH. Avoids a subprocess and is safer when PATH is trimmed (e.g. when
     // Claude Code spawns MCP servers).
     const nodeBin = process.execPath;
+    // downloadAndExtract validates every REQUIRED_BINS entry exists after
+    // extract and throws if not — we don't re-check here.
     await downloadAndExtract({
       baseUrl,
       pkgs: PKGS,
@@ -287,14 +311,6 @@ export async function autoUpgrade(deps: AutoUpgradeDeps): Promise<void> {
       stagingDir: staging,
       nodeBin,
     });
-
-    // Post-extract layout validation: catch malformed tarballs before promote.
-    for (const [pkg, rel] of REQUIRED_BINS) {
-      const p = pathJoin(staging, pkg, rel);
-      if (!existsSync(p)) {
-        throw new Error(`missing ${pkg}/${rel} after extract`);
-      }
-    }
 
     // Write VERSION inside the staging dir BEFORE the swap so the rename
     // promotes a fully-formed runtime atomically. Doing it after swap risks

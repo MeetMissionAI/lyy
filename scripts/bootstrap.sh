@@ -54,10 +54,20 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
 mkdir -p "$RUNTIME_DIR"
+# Parallel download; serial extract. 4 sequential curls used to dominate the
+# first-install wall time; backgrounding them shaves most of it.
+pids=()
 for pkg in cli daemon mcp tui; do
   TARBALL="$TMPDIR/lyy-${pkg}.tgz"
   info "fetching lyy-${pkg}.tgz"
-  curl -fsSL "${BASE_URL}/lyy-${pkg}.tgz" -o "$TARBALL"
+  curl -fsSL --max-time 120 "${BASE_URL}/lyy-${pkg}.tgz" -o "$TARBALL" &
+  pids+=($!)
+done
+for pid in "${pids[@]}"; do
+  wait "$pid" || die "curl failed"
+done
+for pkg in cli daemon mcp tui; do
+  TARBALL="$TMPDIR/lyy-${pkg}.tgz"
   DEST="$RUNTIME_DIR/${pkg}"
   rm -rf "$DEST"
   mkdir -p "$DEST"

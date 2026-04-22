@@ -1,9 +1,26 @@
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  autoUpgrade,
   compareVersion,
   fetchLatestTag,
   isDevInstall,
+  parseSha256Manifest,
   parseVersion,
+  readEtag,
+  swapRuntime,
+  verifySha256,
+  writeEtag,
 } from "./upgrade.js";
 
 describe("parseVersion", () => {
@@ -92,18 +109,6 @@ describe("fetchLatestTag", () => {
   });
 });
 
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { readEtag, writeEtag } from "./upgrade.js";
-
 describe("etag cache", () => {
   let dir: string;
   beforeEach(() => {
@@ -127,9 +132,6 @@ describe("etag cache", () => {
     expect(readEtag(path)).toBe('W/"abc"');
   });
 });
-
-import { createHash } from "node:crypto";
-import { parseSha256Manifest, verifySha256 } from "./upgrade.js";
 
 describe("parseSha256Manifest", () => {
   it("parses `<hex>  <filename>` lines", () => {
@@ -162,8 +164,6 @@ describe("verifySha256", () => {
     expect(verifySha256(Buffer.from("hello"), "0".repeat(64))).toBe(false);
   });
 });
-
-import { swapRuntime } from "./upgrade.js";
 
 describe("swapRuntime", () => {
   let dir: string;
@@ -198,8 +198,6 @@ describe("swapRuntime", () => {
     expect(readFileSync(join(runtime, "VERSION"), "utf8")).toBe("v0.0.2");
   });
 });
-
-import { autoUpgrade } from "./upgrade.js";
 
 describe("autoUpgrade", () => {
   let home: string;
