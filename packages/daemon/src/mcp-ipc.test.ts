@@ -34,6 +34,7 @@ beforeEach(async () => {
       sentAt: "2026-04-19T10:00:00.000Z",
     })),
     markRead: vi.fn(async () => undefined),
+    markThreadRead: vi.fn(async () => undefined),
     archiveThread: vi.fn(async () => undefined),
     unarchiveThread: vi.fn(async () => undefined),
     listThreads: vi.fn(async () => ({ unreadCount: 0, threads: [] })),
@@ -109,6 +110,47 @@ describe("McpIpcServer", () => {
     const ids = ["550e8400-e29b-41d4-a716-446655440011"];
     await client.call("ack_read", { messageIds: ids });
     expect(relayHttp.markRead).toHaveBeenCalledWith(ids);
+  });
+
+  it("ack_thread_read marks thread read on relay and zeroes local unread", async () => {
+    const tid = "550e8400-e29b-41d4-a716-446655440000";
+    const otherTid = "550e8400-e29b-41d4-a716-446655440099";
+    await state.write({
+      unreadCount: 5,
+      threads: [
+        {
+          threadId: tid,
+          shortId: 12,
+          peerName: "leo",
+          lastBody: "hi",
+          unread: 3,
+          lastMessageAt: "2026-04-19T10:00:00.000Z",
+          archived: false,
+          paneOpen: false,
+        },
+        {
+          threadId: otherTid,
+          shortId: 13,
+          peerName: "sam",
+          lastBody: "yo",
+          unread: 2,
+          lastMessageAt: "2026-04-19T10:00:00.000Z",
+          archived: false,
+          paneOpen: false,
+        },
+      ],
+      lastSeenSeq: {},
+    });
+
+    await client.call("ack_thread_read", { threadId: tid });
+
+    expect(relayHttp.markThreadRead).toHaveBeenCalledWith(tid);
+    const after = await state.read();
+    const target = after.threads.find((t) => t.threadId === tid);
+    const untouched = after.threads.find((t) => t.threadId === otherTid);
+    expect(target?.unread).toBe(0);
+    expect(untouched?.unread).toBe(2);
+    expect(after.unreadCount).toBe(2);
   });
 
   it("archive_thread / unarchive_thread proxy to relayHttp", async () => {

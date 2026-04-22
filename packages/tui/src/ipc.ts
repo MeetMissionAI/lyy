@@ -26,6 +26,13 @@ export async function fetchThread(
   return messages;
 }
 
+export async function ackThreadRead(
+  ipc: McpIpcClient,
+  threadId: string,
+): Promise<void> {
+  await ipc.call<{ ok: true }>("ack_thread_read", { threadId });
+}
+
 export async function sendMessage(
   ipc: McpIpcClient,
   threadId: string,

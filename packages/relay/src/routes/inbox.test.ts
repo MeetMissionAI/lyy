@@ -127,6 +127,77 @@ describe.skipIf(skip)("inbox routes", () => {
     });
   });
 
+  describe("POST /threads/:id/read", () => {
+    it("marks every message in the thread as read for the caller", async () => {
+      const s = await seed();
+      const app = await buildServer({ db, jwtSecret: SECRET });
+      try {
+        const res = await app.inject({
+          method: "POST",
+          url: `/threads/${s.threadId}/read`,
+          headers: authHeader(s.bob.id),
+        });
+        expect(res.statusCode).toBe(204);
+
+        const tres = await app.inject({
+          method: "GET",
+          url: "/threads",
+          headers: authHeader(s.bob.id),
+        });
+        const body = tres.json();
+        expect(body.unreadCount).toBe(0);
+        const t = body.threads.find(
+          (x: { threadId: string }) => x.threadId === s.threadId,
+        );
+        expect(t.unread).toBe(0);
+      } finally {
+        await app.close();
+      }
+    });
+
+    it("is idempotent on repeat calls", async () => {
+      const s = await seed();
+      const app = await buildServer({ db, jwtSecret: SECRET });
+      try {
+        for (let i = 0; i < 2; i++) {
+          const res = await app.inject({
+            method: "POST",
+            url: `/threads/${s.threadId}/read`,
+            headers: authHeader(s.bob.id),
+          });
+          expect(res.statusCode).toBe(204);
+        }
+        const tres = await app.inject({
+          method: "GET",
+          url: "/threads",
+          headers: authHeader(s.bob.id),
+        });
+        expect(tres.json().unreadCount).toBe(0);
+      } finally {
+        await app.close();
+      }
+    });
+
+    it("403 when caller is not a participant", async () => {
+      const s = await seed();
+      const c = await createPeer(db, {
+        name: `${TEST_PREFIX}carol4`,
+        email: `${TEST_PREFIX}carol4@x.com`,
+      });
+      const app = await buildServer({ db, jwtSecret: SECRET });
+      try {
+        const res = await app.inject({
+          method: "POST",
+          url: `/threads/${s.threadId}/read`,
+          headers: authHeader(c.id),
+        });
+        expect(res.statusCode).toBe(403);
+      } finally {
+        await app.close();
+      }
+    });
+  });
+
   describe("POST /threads/:id/archive", () => {
     it("archives for the caller only, returns 204", async () => {
       const s = await seed();

@@ -3,6 +3,7 @@ import { render } from "ink";
 import React from "react";
 import { App } from "./app.js";
 import {
+  ackThreadRead,
   fetchPeers,
   fetchState,
   fetchThread,
@@ -25,6 +26,7 @@ export async function main(): Promise<void> {
       fetchMessages={(id) => fetchThread(ipc, id)}
       onSend={(threadId, body) => sendMessage(ipc, threadId, body)}
       onSendToPeer={(name, body) => sendToPeer(ipc, name, body)}
+      onAckThreadRead={(id) => ackThreadRead(ipc, id)}
       subscribeEvents={(cb) => subscribe(cb)}
       selfPeerId={identity.peerId}
     />,

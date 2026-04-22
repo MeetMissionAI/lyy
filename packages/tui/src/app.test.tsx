@@ -134,6 +134,24 @@ describe("App list view", () => {
     expect(lastFrame()).toContain("alice: hi");
   });
 
+  it("Enter on thread fires onAckThreadRead with that threadId", async () => {
+    const onAckThreadRead = vi.fn(async () => {});
+    const { stdin } = render(
+      <App
+        initialState={fakeState}
+        fetchMessages={async () => []}
+        onAckThreadRead={onAckThreadRead}
+        selfPeerId="peer-self"
+      />,
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    stdin.write("\r");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(onAckThreadRead).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+    );
+  });
+
   it("refetches state on message:new event", async () => {
     let capturedHandler: ((event: string, payload: unknown) => void) | null =
       null;

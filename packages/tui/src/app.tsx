@@ -25,6 +25,12 @@ export interface AppProps {
     body: string,
   ) => Promise<SendMessageResult | undefined>;
   onSendToPeer?: (peerName: string, body: string) => Promise<SendMessageResult>;
+  /**
+   * Fire-and-forget mark-thread-read on thread open. Daemon POSTs to relay
+   * `/threads/:id/read` and zeroes the thread's unread in state.json so the
+   * blinking-row UX stops immediately.
+   */
+  onAckThreadRead?: (threadId: string) => Promise<void>;
   subscribeEvents?: (callbacks: SubscribeCallbacks) => () => void;
   selfPeerId?: string;
 }
@@ -37,6 +43,7 @@ export function App({
   fetchMessages = async () => [],
   onSend = async () => undefined,
   onSendToPeer,
+  onAckThreadRead,
   subscribeEvents = () => () => {},
   selfPeerId = "",
 }: AppProps) {
@@ -158,6 +165,17 @@ export function App({
   useEffect(() => {
     if (view.kind === "thread") {
       void fetchMessages(view.threadId).then(setMessages);
+      // Fire-and-forget mark-read. Daemon zeroes the thread's unread in
+      // state.json; we refetch so the row stops blinking immediately.
+      if (onAckThreadRead) {
+        const threadId = view.threadId;
+        void onAckThreadRead(threadId)
+          .then(() => fetchState())
+          .then(setState)
+          .catch(() => {
+            // transient daemon/relay errors — next message:new will refetch.
+          });
+      }
     }
     // Note: don't setMessages([]) in the else branch — fetchMessages default
     // is re-created each render, so that would cause an infinite update loop.

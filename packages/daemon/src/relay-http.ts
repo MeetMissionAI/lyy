@@ -77,6 +77,15 @@ export class RelayHttp {
     if (!res.ok) throw new Error(`POST /reads failed: ${res.status}`);
   }
 
+  async markThreadRead(threadId: string): Promise<void> {
+    const res = await this.fetchImpl(this.url(`/threads/${threadId}/read`), {
+      method: "POST",
+      headers: this.headers(),
+    });
+    if (!res.ok)
+      throw new Error(`POST /threads/:id/read failed: ${res.status}`);
+  }
+
   async archiveThread(threadId: string): Promise<void> {
     const res = await this.fetchImpl(this.url(`/threads/${threadId}/archive`), {
       method: "POST",

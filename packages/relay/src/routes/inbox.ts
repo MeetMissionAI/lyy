@@ -4,6 +4,7 @@ import {
   listMessages,
   listThreadsForPeer,
   markRead,
+  markThreadRead,
   searchMessages,
   unarchiveThread,
 } from "@lyy/shared";
@@ -39,6 +40,19 @@ export async function inboxRoutes(
     await markRead(deps.db, parsed.data.messageIds, req.peerId);
     return reply.code(204).send();
   });
+
+  app.post<{ Params: { id: string } }>(
+    "/threads/:id/read",
+    async (req, reply) => {
+      const thread = await getThreadById(deps.db, req.params.id);
+      if (!thread) return reply.code(404).send({ error: "thread not found" });
+      if (!thread.participants.includes(req.peerId)) {
+        return reply.code(403).send({ error: "not a participant" });
+      }
+      await markThreadRead(deps.db, req.params.id, req.peerId);
+      return reply.code(204).send();
+    },
+  );
 
   app.post<{ Params: { id: string } }>(
     "/threads/:id/archive",

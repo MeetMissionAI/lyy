@@ -260,6 +260,21 @@ export class McpIpcServer {
         await this.deps.relayHttp.markRead(messageIds);
         return { ok: true };
       }
+      case "ack_thread_read": {
+        const { threadId } = params as { threadId: string };
+        await this.deps.relayHttp.markThreadRead(threadId);
+        await this.deps.state.update((s) => {
+          const threads = s.threads.map((t) =>
+            t.threadId === threadId ? { ...t, unread: 0 } : t,
+          );
+          const unreadCount = threads.reduce(
+            (sum, t) => sum + (t.archived ? 0 : t.unread),
+            0,
+          );
+          return { ...s, threads, unreadCount };
+        });
+        return { ok: true };
+      }
       case "archive_thread": {
         const { threadId } = params as { threadId: string };
         await this.deps.relayHttp.archiveThread(threadId);
