@@ -1,36 +1,42 @@
 # LYY — Link Your Yarn
 
-MissionAI 内部工具：在两个 Claude Code session 之间建立持久化双向对话通道。解决两个痛点——(1) 同仓多人开发时不敢动别人代码、缺乏轻量确认通道；(2) 非技术同事的 Claude Code 遇到技术判断题只能瞎猜或打断同事。接收方处理 peer 对话时主 session 上下文不被污染。v1 单团队 self-hosted，走自家 relay + Supabase。
+Peer-to-peer chat channel between Claude Code sessions; stateless Node relay + Postgres, Claude Code on each client, per-profile daemon holds the socket and drives a TUI pane. Self-hosted per team.
 
 ## Release discipline
 
-**DO NOT `git push` or push tags until the user confirms a local smoke test passed.** Commit locally (merges, tags) is fine — just hold off on any push to GitHub. Build/test/biome green does NOT count as sufficient; user must exercise the real flow end-to-end first. Ask for explicit "pushed?" / "green?" signal before `git push origin …` or `git push origin <tag>`.
-
-## Monorepo layout
-
-| Path             | What                                                                 |
-| ---------------- | -------------------------------------------------------------------- |
-| `packages/shared/` | 共享类型、Supabase client、repo 层（peers/threads/messages/reads/archives） |
-| `packages/relay/`  | Relay Server（Node + Socket.IO + HTTP API，K8s 部署）                  |
-| `packages/daemon/` | 本地常驻 sidecar：连 relay、写 `~/.lyy/state.json`、spawn thread pane、注入消息 |
-| `packages/mcp/`    | Claude Code MCP server：暴露 send_to / list_inbox / reply 等工具        |
-| `packages/cli/`    | `lyy` CLI：init / send / inbox / 启动 zellij 布局                        |
-| `claude-assets/`   | settings.json 片段、hooks、slash commands（安装到 `~/.claude/`）         |
-| `deploy/`          | K8s manifests（relay-deployment / service / ingress）                  |
-| `docs/`            | 设计文档与实施计划（`plans/2026-04-19-lyy-*.md`）                        |
-| `migrations/`      | Supabase Postgres SQL migrations                                     |
+**Do NOT `git push` or push tags until the user confirms a local smoke test passed.** Local commits (merges, tags) are fine — hold off on any push to GitHub. Build + test + biome green is not enough; the user must exercise the real flow end-to-end first. Ask for explicit "pushed?" / "green?" before `git push origin …` or `git push origin <tag>`.
 
 ## Common commands
 
 ```bash
-pnpm install      # 安装所有依赖
-pnpm build        # 递归构建所有 package
-pnpm test         # 递归跑 vitest
-pnpm lint         # biome check .
-pnpm format       # biome format --write .
+pnpm install                                  # install all deps
+pnpm build                                    # tsc -b recursively across packages
+LYY_SKIP_DB=1 pnpm -r exec vitest run         # run all tests, skip Postgres-backed
+pnpm lint                                     # biome check .
+pnpm format                                   # biome format --write .
+./scripts/link-local.sh                       # dev mode: symlink ~/.lyy/bin → repo source
 ```
 
-## References
+Release lifecycle: bump `packages/shared/src/version.ts` → commit → push → `git tag v0.X.Y` → push tag → CI builds relay image + tarballs → `kubectl rollout restart deployment/lyy-relay` if relay code changed.
 
-- 设计文档：`docs/plans/2026-04-19-lyy-design.md`
-- 实施计划：`docs/plans/2026-04-19-lyy-implementation.md`
+## Files
+
+| File                   | What                                          | When to read                                                   |
+| ---------------------- | --------------------------------------------- | -------------------------------------------------------------- |
+| `README.md`            | User-facing install / usage / deploy guide    | Onboarding a teammate, writing user docs, explaining a flow    |
+| `README_zh.md`         | Chinese translation of README.md              | Translating doc updates; keep in lockstep with English         |
+| `package.json`         | Workspace root — scripts + pnpm config        | Adding a repo-wide script, changing workspace layout           |
+| `pnpm-workspace.yaml`  | pnpm workspace pattern (`packages/*`)         | Adding a new package                                           |
+| `tsconfig.base.json`   | TS compiler options all packages extend       | Changing TS target / module resolution                         |
+| `biome.json`           | Biome formatter + linter config               | Tweaking lint rules or ignored paths                           |
+
+## Subdirectories
+
+| Directory         | What                                                                         | When to read                                                                    |
+| ----------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `packages/`       | Monorepo workspace (shared / relay / daemon / mcp / cli / tui)               | Working on any runtime code                                                     |
+| `migrations/`     | Supabase Postgres schema migrations, applied in order                        | Schema changes, bootstrapping a fresh DB                                        |
+| `scripts/`        | Shell helpers (`bootstrap.sh` installer, `link-local.sh` dev shim)           | Changing install flow, setting up local dev symlinks                            |
+| `docs/`           | Design + plan documents under `plans/`                                       | Reading design rationale, writing a new plan                                    |
+| `claude-assets/`  | Claude Code settings snippet, hooks, slash commands templates                | Editing slash commands or the MCP registration dropped in at `lyy init`         |
+| `.github/`        | GitHub Actions CI + release workflows                                        | Modifying CI, debugging a build, tuning release asset upload                    |
