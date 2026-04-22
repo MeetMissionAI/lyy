@@ -17,6 +17,7 @@ import {
   lyyPath,
 } from "@lyy/daemon";
 import { LYY_VERSION } from "@lyy/shared";
+import { autoUpgrade } from "../upgrade.js";
 import { which } from "../util/which.js";
 
 /**
@@ -56,6 +57,12 @@ const ZELLIJ_CONFIG = `session_serialization false
  * Ensures lyy-daemon is running first (auto-spawns detached if not).
  */
 export async function runDefault(): Promise<void> {
+  await autoUpgrade({
+    lyyHome: getLyyHome(),
+    argv0: process.argv[1] ?? "",
+    argv: process.argv,
+    env: process.env,
+  });
   await ensureDaemonRunning();
 
   if (process.env.ZELLIJ) {
