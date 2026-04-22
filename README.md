@@ -22,6 +22,7 @@ never pollute either main session's context.
 - [Upgrading](#upgrading)
 - [Troubleshooting](#troubleshooting)
 - [Admin: issuing invites](#admin-issuing-invites)
+- [Deploying your own relay](#deploying-your-own-relay)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Development](#development)
 
@@ -292,6 +293,129 @@ Flags:
 
 Output is the invite code plus a ready-to-copy `lyy init` line to send
 to the new teammate.
+
+---
+
+## Deploying your own relay
+
+LYY's CLI side (daemon, TUI, MCP) runs entirely on each user's machine
+via the bootstrap installer and auto-update. The only server component
+your team needs to host is the **relay** — a stateless Node service that
+terminates WebSockets, validates JWTs, and proxies messages through
+Postgres.
+
+### Infra requirements
+
+| Piece            | Minimum                                                  | Notes                                                                                    |
+| ---------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Postgres 14+     | 1 small instance                                         | Supabase, RDS, Neon, or self-hosted all work. The daemon layer never touches Postgres directly — only the relay does. |
+| Container host   | 1 pod / 1 VM / 1 Fly machine with 256 MiB RAM, 100m CPU  | K8s, Fly.io, Render, ECS — anything that runs a Docker image.                            |
+| Image registry   | Any OCI registry your host can pull from                 | The CI workflow (`.github/workflows/ci.yml`) builds + pushes on every tag, defaulting to ECR. Swap to GHCR / Docker Hub by editing the workflow. |
+| TLS + domain     | 1 hostname with HTTPS + WSS                              | Socket.IO upgrades to WebSocket; your ingress must allow WS. No sticky sessions needed (single-replica relay is fine for team-sized deployments). |
+| GitHub Actions   | Tag-push trigger + registry credentials                  | Optional. You can build + push manually with `docker build -f packages/relay/Dockerfile .`. |
+
+Scale: the relay is stateless except for in-memory socket.io sessions.
+You can run multiple replicas behind a load balancer as long as your LB
+supports WebSocket sticky sessions (or you adopt a Socket.IO Redis adapter).
+Team-sized (< 50 concurrent users) deployments are fine on a single replica.
+
+### Relay environment variables
+
+| Name              | Required | Default        | Notes                                                           |
+| ----------------- | -------- | -------------- | --------------------------------------------------------------- |
+| `DATABASE_URL`    | yes      | —              | Full Postgres URL (`postgres://user:pass@host:5432/dbname`).    |
+| `JWT_SIGNING_KEY` | yes      | —              | Secret for signing peer JWTs. ≥ 32 random bytes (e.g. `openssl rand -base64 48`). |
+| `PORT`            | no       | `3000`         | Bind port.                                                      |
+| `HOST`            | no       | `0.0.0.0`      | Bind host.                                                      |
+
+### Database setup
+
+Two SQL files in `migrations/`, applied in order. Easy way:
+
+```bash
+psql "$DATABASE_URL" < migrations/0001_init.sql
+psql "$DATABASE_URL" < migrations/0002_thread_participants_peer_idx.sql
+```
+
+This creates the `peers`, `threads`, `thread_participants`, `messages`,
+`reads`, `archives`, and `invites` tables. No migration runner is wired
+up — keep the files idempotent and apply new ones manually, or bolt on
+your own (`dbmate` / `sqitch` / `prisma migrate` all work against raw
+SQL).
+
+### Building the relay image
+
+From the repo root:
+
+```bash
+docker build -f packages/relay/Dockerfile -t lyy-relay:<tag> .
+```
+
+The Dockerfile is a multi-stage build that only pulls in
+`@lyy/shared` + `@lyy/relay` (the CLI packages stay out of the runtime
+image), producing a ~80 MB node:20-alpine image.
+
+CI does this automatically: pushing a `v*` tag triggers
+`.github/workflows/ci.yml`, which builds and pushes to the registry your
+secrets are scoped to. To adopt for your own repo: fork, rewrite the
+login step and the `ECR_REPOSITORY` env, and add your own
+`AWS_GITHUB_ROLE_ARN` (or equivalent) secret.
+
+### Deploying
+
+Any container host works. Keep in mind:
+
+- Map `PORT` (3000 by default) to your ingress.
+- Your ingress must terminate TLS and pass `Upgrade: websocket` through
+  — the client connects with `io(url, { transports: ["websocket"] })`
+  and upgrades from HTTP polling.
+- Liveness: `GET /health` returns `{ ok: true }` with 200 — point your
+  probe at that.
+- Logs: structured JSON on stdout. Grep `[presence]` for socket
+  connect/disconnect traces.
+
+There's no shared deploy manifest in this repo (Kubernetes `deploy/` is
+git-ignored per the team's policy of keeping cluster names + ECR paths
+private). Starting points:
+
+- **K8s**: `Deployment` with 1 replica, `Service` ClusterIP port 3000,
+  `Ingress` (or Gateway HTTPRoute) to your hostname with TLS + WS.
+  `envFrom` a sealed-secret holding `DATABASE_URL` + `JWT_SIGNING_KEY`.
+- **Fly.io**: `fly launch` on the Dockerfile, set the two secrets via
+  `fly secrets set`. Fly handles TLS + WS for free.
+- **Render / Railway**: Web Service from the Dockerfile, set env vars in
+  the UI. Both auto-enable WS.
+
+### First teammate
+
+Point your CLI at the new relay:
+
+```bash
+LYY_RELAY_URL=https://your-relay.example.com lyy admin invite admin@your-team.com
+```
+
+Then on the admin's machine:
+
+```bash
+lyy init \
+  --invite <code> \
+  --name admin \
+  --email admin@your-team.com \
+  --relay-url https://your-relay.example.com
+```
+
+From then on, `lyy admin invite ...` issues invites for the rest of the
+team. Each new user's `lyy init` with `--relay-url` writes the relay URL
+into their identity; subsequent invocations don't need the flag.
+
+### Auto-upgrade for a custom deployment
+
+The CLI's auto-upgrader pulls tarballs from GitHub Releases at
+`MeetMissionAI/lyy` (hardcoded — see `packages/cli/src/upgrade.ts`). If
+you fork this repo for your own infra, change the `REPO` constant there
+and `scripts/bootstrap.sh`'s `REPO=` line, and cut releases in your
+fork. Otherwise relay-side forks still benefit from upstream client
+updates as long as the wire protocol stays compatible.
 
 ---
 
