@@ -5,4 +5,4 @@
  * the daemon on mismatch so users don't get stuck on old code after an
  * upgrade.
  */
-export const LYY_VERSION = "0.2.9";
+export const LYY_VERSION = "0.2.10";
