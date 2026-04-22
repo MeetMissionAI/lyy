@@ -1,14 +1,16 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { join as pathJoin, sep } from "node:path";
+import { LYY_VERSION } from "@lyy/shared";
 
 /** Parse `vX.Y.Z` or `X.Y.Z` (any suffix ignored) into [major, minor, patch]. */
 export function parseVersion(tag: string): [number, number, number] {
@@ -172,14 +174,131 @@ export async function downloadAndExtract(args: {
   }
 
   // Pin shebangs for the four known binaries.
-  const bins = [
-    ["cli", "bin/lyy"],
-    ["daemon", "bin/lyy-daemon"],
-    ["mcp", "bin/lyy-mcp"],
-    ["tui", "bin/lyy-tui"],
-  ] as const;
-  for (const [pkg, rel] of bins) {
+  for (const [pkg, rel] of REQUIRED_BINS) {
     const p = pathJoin(args.stagingDir, pkg, rel);
     if (existsSync(p)) pinShebang(p, args.nodeBin);
   }
+}
+
+const REPO = "MeetMissionAI/lyy";
+const PKGS = ["cli", "daemon", "mcp", "tui"];
+
+/**
+ * The bins every release tarball must ship. Used both to pin shebangs after
+ * extract and to validate the staging layout before we swap the runtime. If a
+ * tarball is malformed (missing a bin), we abort the upgrade and keep the old
+ * runtime rather than promote a broken one and die on re-exec with ENOENT.
+ */
+const REQUIRED_BINS = [
+  ["cli", "bin/lyy"],
+  ["daemon", "bin/lyy-daemon"],
+  ["mcp", "bin/lyy-mcp"],
+  ["tui", "bin/lyy-tui"],
+] as const;
+
+export interface AutoUpgradeDeps {
+  lyyHome: string;
+  argv0: string;
+  argv: string[];
+  env: NodeJS.ProcessEnv;
+  /** Injected for tests; default: real GitHub. */
+  fetchTag?: typeof fetchLatestTag;
+}
+
+/**
+ * Orchestrate a best-effort auto-upgrade on CLI launch.
+ *
+ * Design invariants:
+ * - Never upgrade when re-exec'd after a successful upgrade (LYY_JUST_UPGRADED)
+ *   or from a dev checkout. Both are fast short-circuits.
+ * - Fail soft: any network, checksum, or extraction error logs a warning and
+ *   falls back to the current version.
+ * - Stage under `<lyyHome>/upgrade-staging-*` (NOT `os.tmpdir()`) so the
+ *   subsequent rename in `swapRuntime` lands on the same filesystem. On Linux,
+ *   `/tmp` is commonly a separate mount and would EXDEV the swap.
+ * - Validate staging layout (REQUIRED_BINS) before promoting. A malformed
+ *   tarball that made it past sha256 check would otherwise promote a broken
+ *   runtime that then fails to re-exec with ENOENT.
+ * - If `swapRuntime` throws after the first rename but before the second, the
+ *   old runtime sits at `<runtime>-old` and `<runtime>` is missing. Attempt a
+ *   best-effort restore in the catch block so we don't leave the install
+ *   unusable.
+ */
+export async function autoUpgrade(deps: AutoUpgradeDeps): Promise<void> {
+  if (deps.env.LYY_JUST_UPGRADED === "1") return;
+  if (isDevInstall(deps.argv0, deps.lyyHome)) return;
+
+  const etagPath = pathJoin(deps.lyyHome, "upgrade-etag");
+  const runtimeDir = pathJoin(deps.lyyHome, "runtime");
+  const prevEtag = readEtag(etagPath);
+
+  const fetchTag = deps.fetchTag ?? fetchLatestTag;
+  const { tag, etag } = await fetchTag(REPO, prevEtag);
+  if (etag && etag !== prevEtag) writeEtag(etagPath, etag);
+  if (!tag) return;
+  if (compareVersion(tag, LYY_VERSION) <= 0) return;
+
+  console.log(`[lyy] upgrading v${LYY_VERSION} → ${tag}…`);
+
+  // Stage inside lyyHome (not os.tmpdir()) to guarantee same-filesystem
+  // rename in swapRuntime. On Linux, /tmp is commonly a separate mount.
+  const staging = mkdtempSync(pathJoin(deps.lyyHome, "upgrade-staging-"));
+  let swapped = false;
+  try {
+    const baseUrl = `https://github.com/${REPO}/releases/download/${tag}`;
+    const manifestRes = await fetch(`${baseUrl}/SHA256SUMS.txt`);
+    if (!manifestRes.ok) {
+      throw new Error(`SHA256SUMS.txt: ${manifestRes.status}`);
+    }
+    const manifest = parseSha256Manifest(await manifestRes.text());
+    const nodeBin = spawnSync("node", ["-p", "process.execPath"], {
+      encoding: "utf8",
+    }).stdout.trim();
+    await downloadAndExtract({
+      baseUrl,
+      pkgs: PKGS,
+      manifest,
+      stagingDir: staging,
+      nodeBin,
+    });
+
+    // Post-extract layout validation: catch malformed tarballs before promote.
+    for (const [pkg, rel] of REQUIRED_BINS) {
+      const p = pathJoin(staging, pkg, rel);
+      if (!existsSync(p)) {
+        throw new Error(`missing ${pkg}/${rel} after extract`);
+      }
+    }
+
+    swapRuntime(staging, runtimeDir);
+    swapped = true;
+    writeFileSync(pathJoin(runtimeDir, "VERSION"), `${tag}\n`);
+  } catch (err) {
+    console.warn(
+      `[lyy] upgrade to ${tag} failed; continuing on current version: ${
+        (err as Error).message
+      }`,
+    );
+    // Defensive rollback: if swapRuntime threw between rename#1 and rename#2,
+    // `<runtime>-old` holds the old tree and `<runtime>` is missing. Restore
+    // so we don't leave the install in an unusable state. Safe no-op when
+    // swap never ran or completed fully.
+    const backup = `${runtimeDir}-old`;
+    if (!swapped && existsSync(backup) && !existsSync(runtimeDir)) {
+      try {
+        renameSync(backup, runtimeDir);
+      } catch {
+        // best effort — we already logged the upgrade failure
+      }
+    }
+    rmSync(staging, { recursive: true, force: true });
+    return;
+  }
+
+  const newBin = pathJoin(deps.lyyHome, "bin", "lyy");
+  const result = spawnSync(newBin, deps.argv.slice(2), {
+    stdio: "inherit",
+    env: { ...deps.env, LYY_JUST_UPGRADED: "1" },
+  });
+  process.exit(result.status ?? 0);
 }
