@@ -132,6 +132,56 @@ else
 fi
 
 echo
+# zellij is a soft dep: `lyy` without it silently falls back to a plain
+# `claude` launcher and the TUI pane is never spawned. Try to install it so
+# first-run works out of the box. Non-fatal — any failure prints a hint and
+# lets bootstrap finish; `lyy` itself will still work in fallback mode.
+install_zellij() {
+  if command -v zellij >/dev/null 2>&1; then
+    info "zellij already installed ($(zellij --version 2>/dev/null | head -1))"
+    return 0
+  fi
+
+  if [[ "${LYY_SKIP_ZELLIJ_INSTALL:-0}" == "1" ]]; then
+    info "LYY_SKIP_ZELLIJ_INSTALL=1 → skipping zellij install"
+    return 0
+  fi
+
+  local uname_s
+  uname_s=$(uname -s)
+
+  if command -v brew >/dev/null 2>&1; then
+    info "installing zellij via brew (this may take ~30s)"
+    if brew install zellij >/dev/null 2>&1; then
+      info "zellij installed"
+      return 0
+    fi
+    echo "[note] brew install zellij failed — run manually: brew install zellij"
+    return 0
+  fi
+
+  case "$uname_s" in
+    Darwin)
+      echo "[note] zellij not installed and brew not found."
+      echo "       install brew first: https://brew.sh"
+      echo "       then: brew install zellij"
+      ;;
+    Linux)
+      echo "[note] zellij not installed."
+      echo "       install: https://zellij.dev/documentation/installation"
+      echo "       (e.g. \`cargo install --locked zellij\` if you have Rust,"
+      echo "       or download the prebuilt binary from the zellij releases page)"
+      ;;
+    *)
+      echo "[note] unknown platform ($uname_s) — install zellij manually:"
+      echo "       https://zellij.dev/documentation/installation"
+      ;;
+  esac
+}
+
+install_zellij
+
+echo
 echo "Installed lyy $TAG."
 if [[ "$NEED_SOURCE" == 1 ]]; then
   echo "⚠  Restart your shell (or \`source ~/.zshrc\`) to pick up PATH."
