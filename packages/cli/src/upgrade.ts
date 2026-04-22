@@ -198,6 +198,11 @@ const REQUIRED_BINS = [
 ] as const;
 
 export interface AutoUpgradeDeps {
+  /**
+   * Machine-wide LYY root (~/.lyy), NOT a per-profile LYY_HOME. runtime/,
+   * upgrade-etag, and staging dirs all live under this path and are shared
+   * across profiles on the same machine.
+   */
   lyyHome: string;
   argv0: string;
   argv: string[];

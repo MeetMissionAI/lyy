@@ -1,3 +1,4 @@
+import { LYY_VERSION } from "@lyy/shared";
 import { Command } from "commander";
 import { runAdminInvite } from "./commands/admin.js";
 import { runDefault } from "./commands/default.js";
@@ -13,7 +14,7 @@ export function buildCli(): Command {
     .description(
       "Link Your Yarn — peer-to-peer chat between Claude Code sessions",
     )
-    .version("0.1.0")
+    .version(LYY_VERSION)
     .helpCommand(false);
 
   program
