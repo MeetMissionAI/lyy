@@ -17,6 +17,7 @@ import {
   lyyPath,
 } from "@lyy/daemon";
 import { LYY_VERSION } from "@lyy/shared";
+import { autoUpgrade } from "../upgrade.js";
 import { which } from "../util/which.js";
 
 /**
@@ -56,6 +57,17 @@ const ZELLIJ_CONFIG = `session_serialization false
  * Ensures lyy-daemon is running first (auto-spawns detached if not).
  */
 export async function runDefault(): Promise<void> {
+  // lyyHome here is the MACHINE-WIDE ~/.lyy root, not the profile-scoped
+  // LYY_HOME. autoUpgrade mutates the runtime/ directory and etag cache
+  // which are shared across profiles. Using getLyyHome() (profile path)
+  // would make isDevInstall short-circuit because the real binary under
+  // ~/.lyy/runtime/ doesn't start with ~/.lyy/profiles/<name>/runtime/.
+  await autoUpgrade({
+    lyyHome: resolvePath(homedir(), ".lyy"),
+    argv0: process.argv[1] ?? "",
+    argv: process.argv,
+    env: process.env,
+  });
   await ensureDaemonRunning();
 
   if (process.env.ZELLIJ) {
