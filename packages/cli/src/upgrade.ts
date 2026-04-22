@@ -1,12 +1,14 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
+  mkdirSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { sep } from "node:path";
+import { join as pathJoin, sep } from "node:path";
 
 /** Parse `vX.Y.Z` or `X.Y.Z` (any suffix ignored) into [major, minor, patch]. */
 export function parseVersion(tag: string): [number, number, number] {
@@ -125,4 +127,59 @@ export function swapRuntime(staging: string, runtime: string): void {
   }
   renameSync(staging, runtime);
   rmSync(backup, { recursive: true, force: true });
+}
+
+/** Pin a bin's shebang to the absolute node path (mirrors bootstrap.sh). */
+function pinShebang(binPath: string, nodeBin: string): void {
+  const lines = readFileSync(binPath, "utf8").split("\n");
+  lines[0] = `#!${nodeBin}`;
+  writeFileSync(binPath, lines.join("\n"), "utf8");
+}
+
+/**
+ * Download each package tarball, check its sha256 against the manifest, and
+ * `tar -xzf` into `<staging>/<pkg>/`. Rewrites the shebang of the package's
+ * `bin/*` to the absolute path of the current `node` so Claude Code (which
+ * launches MCP servers with a trimmed PATH) can still spawn them. Throws on
+ * any failure so the caller can abort the upgrade and keep the old runtime.
+ */
+export async function downloadAndExtract(args: {
+  baseUrl: string;
+  pkgs: string[]; // e.g. ["cli", "daemon", "mcp", "tui"]
+  manifest: Map<string, string>;
+  stagingDir: string;
+  nodeBin: string;
+}): Promise<void> {
+  mkdirSync(args.stagingDir, { recursive: true });
+  for (const pkg of args.pkgs) {
+    const filename = `lyy-${pkg}.tgz`;
+    const expected = args.manifest.get(filename);
+    if (!expected) throw new Error(`missing sha for ${filename} in manifest`);
+
+    const res = await fetch(`${args.baseUrl}/${filename}`);
+    if (!res.ok) throw new Error(`fetch ${filename}: ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!verifySha256(buf, expected)) {
+      throw new Error(`sha256 mismatch for ${filename}`);
+    }
+
+    const pkgDir = pathJoin(args.stagingDir, pkg);
+    mkdirSync(pkgDir, { recursive: true });
+    const tarPath = pathJoin(args.stagingDir, filename);
+    writeFileSync(tarPath, buf);
+    execFileSync("tar", ["-xzf", tarPath, "-C", pkgDir]);
+    rmSync(tarPath);
+  }
+
+  // Pin shebangs for the four known binaries.
+  const bins = [
+    ["cli", "bin/lyy"],
+    ["daemon", "bin/lyy-daemon"],
+    ["mcp", "bin/lyy-mcp"],
+    ["tui", "bin/lyy-tui"],
+  ] as const;
+  for (const [pkg, rel] of bins) {
+    const p = pathJoin(args.stagingDir, pkg, rel);
+    if (existsSync(p)) pinShebang(p, args.nodeBin);
+  }
 }
