@@ -198,3 +198,52 @@ describe("swapRuntime", () => {
     expect(readFileSync(join(runtime, "VERSION"), "utf8")).toBe("v0.0.2");
   });
 });
+
+import { autoUpgrade } from "./upgrade.js";
+
+describe("autoUpgrade", () => {
+  let home: string;
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "lyy-home-"));
+    mkdirSync(join(home, "runtime"), { recursive: true });
+    mkdirSync(join(home, "bin"), { recursive: true });
+  });
+  afterEach(() => rmSync(home, { recursive: true, force: true }));
+
+  it("short-circuits when LYY_JUST_UPGRADED=1", async () => {
+    const fetchTag = vi.fn(async () => ({ tag: "v999.0.0", etag: null }));
+    await autoUpgrade({
+      lyyHome: home,
+      argv0: `${home}/runtime/cli/bin/lyy`,
+      argv: ["node", "lyy"],
+      env: { LYY_JUST_UPGRADED: "1" },
+      fetchTag,
+    });
+    expect(fetchTag).not.toHaveBeenCalled();
+  });
+
+  it("short-circuits dev installs", async () => {
+    const fetchTag = vi.fn(async () => ({ tag: "v999.0.0", etag: null }));
+    await autoUpgrade({
+      lyyHome: home,
+      argv0: "/Users/me/code/lyy/packages/cli/bin/lyy-dev",
+      argv: ["node", "lyy"],
+      env: {},
+      fetchTag,
+    });
+    expect(fetchTag).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when API returns no tag (304 / offline)", async () => {
+    const fetchTag = vi.fn(async () => ({ tag: null, etag: 'W/"abc"' }));
+    await autoUpgrade({
+      lyyHome: home,
+      argv0: `${home}/runtime/cli/bin/lyy`,
+      argv: ["node", "lyy"],
+      env: {},
+      fetchTag,
+    });
+    // Etag was refreshed; no runtime dir changes.
+    expect(readEtag(join(home, "upgrade-etag"))).toBe('W/"abc"');
+  });
+});
