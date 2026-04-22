@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { compareVersion, isDevInstall, parseVersion } from "./upgrade.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  compareVersion,
+  fetchLatestTag,
+  isDevInstall,
+  parseVersion,
+} from "./upgrade.js";
 
 describe("parseVersion", () => {
   it("accepts v-prefixed and plain tags", () => {
@@ -37,5 +42,52 @@ describe("isDevInstall", () => {
     expect(
       isDevInstall("/Users/me/.lyy/runtime/cli/bin/lyy", "/Users/me/.lyy"),
     ).toBe(false);
+  });
+});
+
+describe("fetchLatestTag", () => {
+  const repo = "org/repo";
+
+  function mockFetch(impl: (url: string, init: RequestInit) => Response) {
+    const spy = vi.fn(async (url, init) => impl(String(url), init ?? {}));
+    vi.stubGlobal("fetch", spy);
+    return spy;
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns {tag, etag} on 200", async () => {
+    mockFetch(
+      () =>
+        new Response(JSON.stringify({ tag_name: "v0.2.7" }), {
+          status: 200,
+          headers: { etag: 'W/"abc"' },
+        }),
+    );
+    expect(await fetchLatestTag(repo, null)).toEqual({
+      tag: "v0.2.7",
+      etag: 'W/"abc"',
+    });
+  });
+
+  it("returns {null, prevEtag} on 304", async () => {
+    mockFetch(() => new Response(null, { status: 304 }));
+    expect(await fetchLatestTag(repo, 'W/"abc"')).toEqual({
+      tag: null,
+      etag: 'W/"abc"',
+    });
+  });
+
+  it("returns {null, null} on error / timeout / bad body", async () => {
+    mockFetch(() => new Response("not json", { status: 200 }));
+    expect(await fetchLatestTag(repo, null)).toEqual({ tag: null, etag: null });
+  });
+
+  it("sends If-None-Match when prevEtag is provided", async () => {
+    const spy = mockFetch(() => new Response(null, { status: 304 }));
+    await fetchLatestTag(repo, 'W/"xyz"');
+    const init = spy.mock.calls[0]?.[1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers["if-none-match"]).toBe('W/"xyz"');
   });
 });
