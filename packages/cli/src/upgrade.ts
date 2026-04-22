@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { sep } from "node:path";
 
 /** Parse `vX.Y.Z` or `X.Y.Z` (any suffix ignored) into [major, minor, patch]. */
@@ -101,4 +107,22 @@ export function parseSha256Manifest(raw: string): Map<string, string> {
 export function verifySha256(data: Buffer, expectedHex: string): boolean {
   const actual = createHash("sha256").update(data).digest("hex");
   return actual.toLowerCase() === expectedHex.toLowerCase();
+}
+
+/**
+ * Atomic promotion: `<runtime>-old ← <runtime>`, `<runtime> ← staging`, then
+ * remove the backup. Both `rename`s are atomic on the same filesystem
+ * (Mac/Linux). If the second rename fails, we still have the old runtime at
+ * `<runtime>-old` so the caller can manually recover.
+ */
+export function swapRuntime(staging: string, runtime: string): void {
+  const backup = `${runtime}-old`;
+  if (existsSync(backup)) {
+    rmSync(backup, { recursive: true, force: true });
+  }
+  if (existsSync(runtime)) {
+    renameSync(runtime, backup);
+  }
+  renameSync(staging, runtime);
+  rmSync(backup, { recursive: true, force: true });
 }

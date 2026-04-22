@@ -92,7 +92,14 @@ describe("fetchLatestTag", () => {
   });
 });
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readEtag, writeEtag } from "./upgrade.js";
@@ -153,5 +160,41 @@ describe("verifySha256", () => {
   });
   it("rejects mismatch", () => {
     expect(verifySha256(Buffer.from("hello"), "0".repeat(64))).toBe(false);
+  });
+});
+
+import { swapRuntime } from "./upgrade.js";
+
+describe("swapRuntime", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "lyy-swap-"));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("promotes staging → runtime, deletes old", () => {
+    const runtime = join(dir, "runtime");
+    const staging = join(dir, "runtime-staging");
+    mkdirSync(runtime);
+    writeFileSync(join(runtime, "VERSION"), "v0.0.1");
+    mkdirSync(staging);
+    writeFileSync(join(staging, "VERSION"), "v0.0.2");
+
+    swapRuntime(staging, runtime);
+
+    expect(readFileSync(join(runtime, "VERSION"), "utf8")).toBe("v0.0.2");
+    expect(existsSync(staging)).toBe(false);
+    expect(existsSync(`${runtime}-old`)).toBe(false);
+  });
+
+  it("works when runtime doesn't exist yet", () => {
+    const runtime = join(dir, "runtime");
+    const staging = join(dir, "runtime-staging");
+    mkdirSync(staging);
+    writeFileSync(join(staging, "VERSION"), "v0.0.2");
+
+    swapRuntime(staging, runtime);
+
+    expect(readFileSync(join(runtime, "VERSION"), "utf8")).toBe("v0.0.2");
   });
 });
