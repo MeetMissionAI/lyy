@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   compareVersion,
   fetchLatestTag,
@@ -89,5 +89,34 @@ describe("fetchLatestTag", () => {
     const init = spy.mock.calls[0]?.[1] as RequestInit;
     const headers = init.headers as Record<string, string>;
     expect(headers["if-none-match"]).toBe('W/"xyz"');
+  });
+});
+
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { readEtag, writeEtag } from "./upgrade.js";
+
+describe("etag cache", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "lyy-upgrade-"));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("reads null when file missing", () => {
+    expect(readEtag(join(dir, "etag"))).toBeNull();
+  });
+
+  it("round-trips through write/read", () => {
+    const path = join(dir, "etag");
+    writeEtag(path, 'W/"abc"');
+    expect(readEtag(path)).toBe('W/"abc"');
+  });
+
+  it("trims trailing whitespace/newlines", () => {
+    const path = join(dir, "etag");
+    writeFileSync(path, 'W/"abc"\n\n', "utf8");
+    expect(readEtag(path)).toBe('W/"abc"');
   });
 });

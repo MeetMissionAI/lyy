@@ -1,3 +1,4 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { sep } from "node:path";
 
 /** Parse `vX.Y.Z` or `X.Y.Z` (any suffix ignored) into [major, minor, patch]. */
@@ -59,5 +60,23 @@ export async function fetchLatestTag(
     return { tag: null, etag: null };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+export function readEtag(path: string): string | null {
+  if (!existsSync(path)) return null;
+  try {
+    const raw = readFileSync(path, "utf8").trim();
+    return raw || null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeEtag(path: string, etag: string): void {
+  try {
+    writeFileSync(path, `${etag}\n`, "utf8");
+  } catch {
+    // ignore — we'd rather skip the cache than crash a session
   }
 }
