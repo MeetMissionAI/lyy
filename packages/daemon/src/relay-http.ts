@@ -78,9 +78,13 @@ export class RelayHttp {
   }
 
   async markThreadRead(threadId: string): Promise<void> {
+    // Fastify's json parser rejects empty body when content-type is
+    // application/json (FST_ERR_CTP_EMPTY_JSON_BODY), so send `{}` to keep
+    // the shared headers() helper without a no-body special case.
     const res = await this.fetchImpl(this.url(`/threads/${threadId}/read`), {
       method: "POST",
       headers: this.headers(),
+      body: "{}",
     });
     if (!res.ok)
       throw new Error(`POST /threads/:id/read failed: ${res.status}`);

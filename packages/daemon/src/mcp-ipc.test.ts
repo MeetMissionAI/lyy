@@ -153,6 +153,30 @@ describe("McpIpcServer", () => {
     expect(after.unreadCount).toBe(2);
   });
 
+  it("ack_thread_read skips relay when thread already has unread=0", async () => {
+    const tid = "550e8400-e29b-41d4-a716-446655440000";
+    await state.write({
+      unreadCount: 0,
+      threads: [
+        {
+          threadId: tid,
+          shortId: 12,
+          peerName: "leo",
+          lastBody: "hi",
+          unread: 0,
+          lastMessageAt: "2026-04-19T10:00:00.000Z",
+          archived: false,
+          paneOpen: false,
+        },
+      ],
+      lastSeenSeq: {},
+    });
+
+    await client.call("ack_thread_read", { threadId: tid });
+
+    expect(relayHttp.markThreadRead).not.toHaveBeenCalled();
+  });
+
   it("archive_thread / unarchive_thread proxy to relayHttp", async () => {
     const tid = "550e8400-e29b-41d4-a716-446655440000";
     await client.call("archive_thread", { threadId: tid });

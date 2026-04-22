@@ -262,6 +262,13 @@ export class McpIpcServer {
       }
       case "ack_thread_read": {
         const { threadId } = params as { threadId: string };
+        // Skip the relay round-trip + state.json rewrite when the thread
+        // is already read locally. Reopening a read thread is a common
+        // TUI action (one ack per view transition) — no need to burn an
+        // HTTP + fs write each time.
+        const current = await this.deps.state.read();
+        const existing = current.threads.find((t) => t.threadId === threadId);
+        if (existing && existing.unread === 0) return { ok: true };
         await this.deps.relayHttp.markThreadRead(threadId);
         await this.deps.state.update((s) => {
           const threads = s.threads.map((t) =>
