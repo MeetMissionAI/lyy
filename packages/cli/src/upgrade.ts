@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { sep } from "node:path";
 
@@ -79,4 +80,25 @@ export function writeEtag(path: string, etag: string): void {
   } catch {
     // ignore — we'd rather skip the cache than crash a session
   }
+}
+
+/**
+ * The release workflow writes `SHA256SUMS.txt` as `<sha>  <filename>\n` per
+ * `sha256sum` convention. Parse into a filename→sha map.
+ */
+export function parseSha256Manifest(raw: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const m = /^([0-9a-fA-F]{64})\s+(.+)$/.exec(trimmed);
+    if (!m) continue;
+    out.set(m[2].trim(), m[1].toLowerCase());
+  }
+  return out;
+}
+
+export function verifySha256(data: Buffer, expectedHex: string): boolean {
+  const actual = createHash("sha256").update(data).digest("hex");
+  return actual.toLowerCase() === expectedHex.toLowerCase();
 }

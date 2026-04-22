@@ -120,3 +120,38 @@ describe("etag cache", () => {
     expect(readEtag(path)).toBe('W/"abc"');
   });
 });
+
+import { createHash } from "node:crypto";
+import { parseSha256Manifest, verifySha256 } from "./upgrade.js";
+
+describe("parseSha256Manifest", () => {
+  it("parses `<hex>  <filename>` lines", () => {
+    const a = "a".repeat(64);
+    const b = "b".repeat(64);
+    const c = "c".repeat(64);
+    const manifest = [
+      `${a}  lyy-cli.tgz`,
+      `${b}  lyy-daemon.tgz`,
+      "",
+      `${c}  lyy-mcp.tgz`,
+    ].join("\n");
+    expect(parseSha256Manifest(manifest)).toEqual(
+      new Map([
+        ["lyy-cli.tgz", a],
+        ["lyy-daemon.tgz", b],
+        ["lyy-mcp.tgz", c],
+      ]),
+    );
+  });
+});
+
+describe("verifySha256", () => {
+  it("accepts matching hash", () => {
+    const buf = Buffer.from("hello");
+    const hex = createHash("sha256").update(buf).digest("hex");
+    expect(verifySha256(buf, hex)).toBe(true);
+  });
+  it("rejects mismatch", () => {
+    expect(verifySha256(Buffer.from("hello"), "0".repeat(64))).toBe(false);
+  });
+});
