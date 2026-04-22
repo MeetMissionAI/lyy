@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -228,15 +229,34 @@ export async function autoUpgrade(deps: AutoUpgradeDeps): Promise<void> {
   if (deps.env.LYY_JUST_UPGRADED === "1") return;
   if (isDevInstall(deps.argv0, deps.lyyHome)) return;
 
+  // Clean any upgrade-staging-* orphans from previous crashed runs. If the
+  // process was killed between mkdtempSync and the catch's rmSync, the
+  // directory would otherwise accumulate under lyyHome indefinitely.
+  try {
+    for (const entry of readdirSync(deps.lyyHome)) {
+      if (entry.startsWith("upgrade-staging-")) {
+        rmSync(pathJoin(deps.lyyHome, entry), { recursive: true, force: true });
+      }
+    }
+  } catch {
+    // lyyHome might not exist yet on fresh installs; the caller's mkdtempSync
+    // will throw with a clearer message.
+  }
+
   const etagPath = pathJoin(deps.lyyHome, "upgrade-etag");
   const runtimeDir = pathJoin(deps.lyyHome, "runtime");
   const prevEtag = readEtag(etagPath);
 
   const fetchTag = deps.fetchTag ?? fetchLatestTag;
   const { tag, etag } = await fetchTag(REPO, prevEtag);
-  if (etag && etag !== prevEtag) writeEtag(etagPath, etag);
-  if (!tag) return;
-  if (compareVersion(tag, LYY_VERSION) <= 0) return;
+  if (!tag || compareVersion(tag, LYY_VERSION) <= 0) {
+    // No upgrade to attempt — safe to persist etag for the next 304.
+    if (etag && etag !== prevEtag) writeEtag(etagPath, etag);
+    return;
+  }
+  // Upgrade path — defer the etag write until after swap succeeds. If we
+  // persist it up front and any step below fails, the next launch gets 304
+  // from GitHub and never retries; the user is wedged on the old version.
 
   console.log(`[lyy] upgrading v${LYY_VERSION} → ${tag}…`);
 
@@ -251,9 +271,10 @@ export async function autoUpgrade(deps: AutoUpgradeDeps): Promise<void> {
       throw new Error(`SHA256SUMS.txt: ${manifestRes.status}`);
     }
     const manifest = parseSha256Manifest(await manifestRes.text());
-    const nodeBin = spawnSync("node", ["-p", "process.execPath"], {
-      encoding: "utf8",
-    }).stdout.trim();
+    // Use the same node that's running us, rather than whatever `node` is on
+    // PATH. Avoids a subprocess and is safer when PATH is trimmed (e.g. when
+    // Claude Code spawns MCP servers).
+    const nodeBin = process.execPath;
     await downloadAndExtract({
       baseUrl,
       pkgs: PKGS,
@@ -270,9 +291,15 @@ export async function autoUpgrade(deps: AutoUpgradeDeps): Promise<void> {
       }
     }
 
+    // Write VERSION inside the staging dir BEFORE the swap so the rename
+    // promotes a fully-formed runtime atomically. Doing it after swap risks
+    // leaving the promoted runtime with a stale VERSION if the write fails.
+    writeFileSync(pathJoin(staging, "VERSION"), `${tag}\n`);
     swapRuntime(staging, runtimeDir);
     swapped = true;
-    writeFileSync(pathJoin(runtimeDir, "VERSION"), `${tag}\n`);
+    // Only now is it safe to persist the etag: the new runtime is live, so
+    // next launch will see {new version, cached etag} — a consistent pair.
+    if (etag && etag !== prevEtag) writeEtag(etagPath, etag);
   } catch (err) {
     console.warn(
       `[lyy] upgrade to ${tag} failed; continuing on current version: ${
