@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareVersion, parseVersion } from "./upgrade.js";
+import { compareVersion, isDevInstall, parseVersion } from "./upgrade.js";
 
 describe("parseVersion", () => {
   it("accepts v-prefixed and plain tags", () => {
@@ -20,5 +20,22 @@ describe("compareVersion", () => {
     expect(compareVersion("v0.2.8", "v0.2.7")).toBeGreaterThan(0);
     expect(compareVersion("v0.2.7", "v0.2.7")).toBe(0);
     expect(compareVersion("0.2.7", "0.2.8")).toBeLessThan(0);
+  });
+});
+
+describe("isDevInstall", () => {
+  it("returns true when binary sits under a source checkout", () => {
+    expect(
+      isDevInstall(
+        "/Users/me/code/lyy/packages/cli/bin/lyy-dev",
+        "/Users/me/.lyy",
+      ),
+    ).toBe(true);
+  });
+
+  it("returns false for a bootstrap install under runtime", () => {
+    expect(
+      isDevInstall("/Users/me/.lyy/runtime/cli/bin/lyy", "/Users/me/.lyy"),
+    ).toBe(false);
   });
 });
