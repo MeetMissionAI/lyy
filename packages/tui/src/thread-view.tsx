@@ -1,5 +1,6 @@
 import type { Message } from "@lyy/shared";
 import { Box, Text, useInput } from "ink";
+import Spinner from "ink-spinner";
 import React, { useState } from "react";
 import { parseClaudeMention } from "./inject-claude.js";
 import { TextArea } from "./text-area.js";
@@ -8,6 +9,7 @@ export interface ThreadViewProps {
   thread: { threadId: string; shortId: number; peerName: string };
   messages: Message[];
   selfPeerId: string;
+  isLoading?: boolean;
   onSend: (body: string) => Promise<void> | void;
   onInjectClaude?: (question: string) => Promise<void> | void;
   suggestion?: string;
@@ -18,6 +20,7 @@ export function ThreadView({
   thread,
   messages,
   selfPeerId,
+  isLoading,
   onSend,
   onInjectClaude,
   suggestion,
@@ -64,15 +67,31 @@ export function ThreadView({
         ← #{thread.shortId} @{thread.peerName}
       </Text>
       <Box flexDirection="column" flexGrow={1}>
-        {messages.map((m) => {
-          const who = m.fromPeer === selfPeerId ? "me" : thread.peerName;
-          const time = m.sentAt.slice(11, 16);
-          return (
-            <Text key={m.id}>
-              [{time}] {who}: {m.body}
+        {isLoading ? (
+          <Box marginTop={1}>
+            <Text color="cyan">
+              <Spinner type="dots" />
             </Text>
-          );
-        })}
+            <Text dimColor> Loading messages…</Text>
+          </Box>
+        ) : (
+          messages.map((m) => {
+            const isSelf = m.fromPeer === selfPeerId;
+            const who = isSelf ? "me" : thread.peerName;
+            const time = m.sentAt.slice(11, 16);
+            return (
+              <Box key={m.id} flexDirection="column" marginTop={1}>
+                <Text>
+                  <Text dimColor>{time} </Text>
+                  <Text bold color={isSelf ? "cyan" : undefined}>
+                    {who}
+                  </Text>
+                </Text>
+                <Text>{m.body}</Text>
+              </Box>
+            );
+          })
+        )}
       </Box>
       {suggestion && (
         <Box
@@ -88,7 +107,7 @@ export function ThreadView({
       )}
       <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
         <Text color="cyan">&gt; </Text>
-        <Box flexGrow={1} flexDirection="column">
+        <Box flexGrow={1} flexDirection="column" height={2}>
           <TextArea
             value={draft}
             onChange={setDraft}

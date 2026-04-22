@@ -46,8 +46,10 @@ describe("ThreadView", () => {
       />,
     );
     const frame = lastFrame() ?? "";
-    expect(frame).toContain("alice: hi");
-    expect(frame).toContain("me: yo");
+    expect(frame).toContain("alice");
+    expect(frame).toContain("hi");
+    expect(frame).toContain("me");
+    expect(frame).toContain("yo");
   });
 
   it("shows HH:MM timestamp", () => {
@@ -59,8 +61,21 @@ describe("ThreadView", () => {
         onSend={() => {}}
       />,
     );
-    expect(lastFrame()).toContain("[10:00]");
-    expect(lastFrame()).toContain("[10:01]");
+    expect(lastFrame()).toContain("10:00");
+    expect(lastFrame()).toContain("10:01");
+  });
+
+  it("shows loading indicator when isLoading=true", () => {
+    const { lastFrame } = render(
+      <ThreadView
+        thread={{ threadId: "t1", shortId: 7, peerName: "alice" }}
+        messages={[]}
+        selfPeerId="self"
+        isLoading
+        onSend={() => {}}
+      />,
+    );
+    expect(lastFrame()).toContain("Loading messages");
   });
 
   it("renders empty history without crashing", () => {

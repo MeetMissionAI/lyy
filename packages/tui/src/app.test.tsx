@@ -131,7 +131,9 @@ describe("App list view", () => {
       "11111111-1111-4111-8111-111111111111",
     );
     expect(lastFrame()).toContain("← #7 @alice");
-    expect(lastFrame()).toContain("alice: hi");
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("alice");
+    expect(frame).toContain("hi");
   });
 
   it("Enter on thread fires onAckThreadRead with that threadId", async () => {

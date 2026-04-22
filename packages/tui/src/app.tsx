@@ -1,7 +1,7 @@
 import type { SendMessageResult, State } from "@lyy/daemon";
 import { LYY_VERSION, type Message, type Peer } from "@lyy/shared";
 import { Box, Text, useInput } from "ink";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { buildClaudePrompt, injectIntoClaudePane } from "./inject-claude.js";
 import type { SubscribeCallbacks } from "./ipc.js";
 import { ThreadView } from "./thread-view.js";
@@ -49,6 +49,8 @@ export function App({
 }: AppProps) {
   const [view, setView] = useState<View>({ kind: "list" });
   const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const lastLoadedThreadRef = useRef<string | null>(null);
   const [state, setState] = useState(initialState);
   const [peers, setPeers] = useState<Peer[]>(initialPeers);
   const [onlinePeers, setOnlinePeers] = useState<Set<string>>(new Set());
@@ -78,6 +80,8 @@ export function App({
         }
         setView({ kind: "list" });
         setMessages([]);
+        setLoading(false);
+        lastLoadedThreadRef.current = null;
       }
       return;
     }
@@ -164,12 +168,21 @@ export function App({
   // biome-ignore lint/correctness/useExhaustiveDependencies: version bump triggers refetch on message:new
   useEffect(() => {
     if (view.kind === "thread") {
-      void fetchMessages(view.threadId).then(setMessages);
+      const tid = view.threadId;
+      const isInitialLoad = lastLoadedThreadRef.current !== tid;
+      if (isInitialLoad) setLoading(true);
+      void fetchMessages(tid)
+        .then((msgs) => {
+          setMessages(msgs);
+          lastLoadedThreadRef.current = tid;
+        })
+        .finally(() => {
+          if (isInitialLoad) setLoading(false);
+        });
       // Fire-and-forget mark-read. Daemon zeroes the thread's unread in
       // state.json; we refetch so the row stops blinking immediately.
       if (onAckThreadRead) {
-        const threadId = view.threadId;
-        void onAckThreadRead(threadId)
+        void onAckThreadRead(tid)
           .then(() => fetchState())
           .then(setState)
           .catch(() => {
@@ -194,6 +207,7 @@ export function App({
         }}
         messages={messages}
         selfPeerId={selfPeerId}
+        isLoading={loading}
         onSend={async (body) => {
           // Optimistic insert: append locally first so the input clears into
           // the visible transcript immediately. Roll back + rethrow on failure
