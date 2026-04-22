@@ -5,6 +5,7 @@ dist
 .env
 .env.local
 .lyy/
+.claude/worktrees/
 
 # Deploy manifests kept local only (cluster config, K8s secret refs,
 # ECR paths). Purged from history when repo went public.
